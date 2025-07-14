@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strings"
 )
 
 // Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
@@ -23,5 +24,21 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn.Write([]byte("+PONG\r\n"))
+	handlePing(conn)
+}
+
+func handlePing(conn net.Conn) {
+	defer conn.Close()
+
+	readBuf := make([]byte, 1024)
+	pong := "+PONG\r\n"
+
+	for n, err := conn.Read(readBuf); n != 0; n, err = conn.Read(readBuf) {
+		if err != nil {
+			return
+		}
+
+		count := strings.Count(string(readBuf), "PING")
+		conn.Write([]byte(strings.Repeat(pong, count)))
+	}
 }
