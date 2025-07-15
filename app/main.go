@@ -18,13 +18,14 @@ func main() {
 		os.Exit(1)
 	}
 
-	conn, err := l.Accept()
-	if err != nil {
-		fmt.Println("Error accepting connection: ", err.Error())
-		os.Exit(1)
-	}
+	for conn, err := l.Accept(); true; conn, err = l.Accept() {
+		if err != nil {
+			fmt.Println("Error accepting connection: ", err.Error())
+			os.Exit(1)
+		}
 
-	handlePing(conn)
+		go handlePing(conn)
+	}
 }
 
 func handlePing(conn net.Conn) {
