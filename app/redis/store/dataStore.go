@@ -25,6 +25,10 @@ func Get(key string) (string, bool) {
 		return "", false
 	}
 
+	if expValue.expiry == 0 {
+		return expValue.value, true
+	}
+
 	now := time.Now()
 	diff := now.Sub(expValue.timeAdded)
 	fmt.Printf("got value %v with expiry %v, diff: %v \n", expValue.value, expValue.expiry, diff.Milliseconds())

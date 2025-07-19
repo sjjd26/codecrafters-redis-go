@@ -27,5 +27,5 @@ func (pingCmd Ping) Handle() (string, error) {
 	if pingCmd.message != "" {
 		return types.CreateBulkString(pingCmd.message), nil
 	}
-	return "+PING\r\n", nil
+	return "+PONG\r\n", nil
 }
