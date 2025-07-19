@@ -78,7 +78,7 @@ func handleConnection(conn net.Conn) {
 		inputChan <- readBuf[:n]
 		resp := <-inputChan
 
-		// fmt.Printf("writing: %q \n", resp)
+		fmt.Printf("writing: %q \n", resp)
 		_, writeErr := conn.Write([]byte(resp))
 		if writeErr != nil {
 			fmt.Println("Error writing to connection:", writeErr)
@@ -102,7 +102,7 @@ func handleInput(input []byte) ([]byte, error) {
 			return nil, fmt.Errorf("command %v failed: %w", command, err)
 		}
 
-		// fmt.Printf("adding response: %q \n", cmdResp)
+		fmt.Printf("adding response: %q \n", cmdResp)
 		inputResp = append(inputResp, []byte(cmdResp)...)
 	}
 
