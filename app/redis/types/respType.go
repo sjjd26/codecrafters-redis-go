@@ -1,4 +1,4 @@
-package redis
+package types
 
 import (
 	"fmt"
@@ -62,4 +62,8 @@ func CheckTypeByte(typeByte byte, expectedType RespType) error {
 		return fmt.Errorf("type byte (%v) does not match expected (%v)", respType, expectedType)
 	}
 	return nil
+}
+
+func CreateBulkString(str string) string {
+	return fmt.Sprintf("$%v\r\n%s\r\n", len(str), str)
 }

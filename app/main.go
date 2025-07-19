@@ -5,7 +5,7 @@ import (
 	"net"
 	"os"
 
-	"github.com/codecrafters-io/redis-starter-go/app/redis"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/parser"
 )
 
 var inputChannelQueue = make(chan chan []byte, 10)
@@ -22,7 +22,7 @@ func main() {
 		// fmt.Println("got input from channel")
 		response, err := handleInput(input)
 		if err != nil {
-			fmt.Println("Error handling input")
+			fmt.Println("Error handling input: ", err.Error())
 			os.Exit(1)
 		}
 		inputChan <- response
@@ -90,21 +90,15 @@ func handleConnection(conn net.Conn) {
 func handleInput(input []byte) ([]byte, error) {
 	// fmt.Println("handling new input...")
 
-	commands, err := redis.ParseInput(input)
+	command, err := parser.ParseInput(input)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse input: %q, %w", string(input), err)
 	}
 
-	inputResp := []byte{}
-	for _, command := range commands {
-		cmdResp, err := redis.HandleCommand(command)
-		if err != nil {
-			return nil, fmt.Errorf("command %v failed: %w", command, err)
-		}
-
-		fmt.Printf("adding response: %q \n", cmdResp)
-		inputResp = append(inputResp, []byte(cmdResp)...)
+	resp, err := command.Handle()
+	if err != nil {
+		return nil, fmt.Errorf("command %v failed: %w", command, err)
 	}
 
-	return inputResp, nil
+	return []byte(resp), nil
 }

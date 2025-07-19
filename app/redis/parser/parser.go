@@ -1,17 +1,20 @@
-package redis
+package parser
 
 import (
 	"fmt"
 	"strconv"
 	"strings"
+
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
 var ErrAggregateLength = fmt.Errorf("failed to get length of aggregate type")
 var ErrTypeByteCheck = fmt.Errorf("failed type byte check")
 
-func getAggregateLength(input []byte, start int) (int, int, error) {
+func getAggregateLength(input []byte) (int, int, error) {
 	len := 0
-	p := start + 1
+	p := 1
 
 	// fmt.Printf("get legnth, p: %v \n", p)
 	for ; input[p] != '\r'; p++ {
@@ -27,17 +30,17 @@ func getAggregateLength(input []byte, start int) (int, int, error) {
 	return len, p + 2, nil
 }
 
-func parseBulkString(input []byte, start int) (string, int, error) {
+func parseBulkString(input []byte) (string, int, error) {
 	// fmt.Printf("hello 2, %q \n", input)
-	// fmt.Printf("parsing bulk string, input: %q, start: %v \n", input, start)
-	typeByte := input[start]
-	err := CheckTypeByte(typeByte, RespBulkStr)
+	// fmt.Printf("parsing bulk string, input: %q \n", input)
+	typeByte := input[0]
+	err := types.CheckTypeByte(typeByte, types.RespBulkStr)
 	if err != nil {
 		return "", -1, fmt.Errorf("%w: %w", ErrTypeByteCheck, err)
 	}
 
 	// fmt.Println("passed type byte check")
-	strLen, p, err := getAggregateLength(input, start)
+	strLen, p, err := getAggregateLength(input)
 	if err != nil {
 		return "", -1, fmt.Errorf("%w: %w", ErrAggregateLength, err)
 	}
@@ -50,17 +53,17 @@ func parseBulkString(input []byte, start int) (string, int, error) {
 	return str, strEnd + 2, nil
 }
 
-func parseArray(input []byte, start int) ([]string, int, error) {
+func parseArray(input []byte) ([]string, int, error) {
 	// fmt.Println("parsing array")
 
-	typeByte := input[start]
-	err := CheckTypeByte(typeByte, RespArray)
+	typeByte := input[0]
+	err := types.CheckTypeByte(typeByte, types.RespArray)
 	if err != nil {
 		return nil, -1, fmt.Errorf("%w: %w", ErrTypeByteCheck, err)
 	}
 
 	// fmt.Println("getting length of array")
-	arrayLen, p, err := getAggregateLength(input, start)
+	arrayLen, p, err := getAggregateLength(input)
 	if err != nil {
 		return nil, -1, fmt.Errorf("%w: %w", ErrAggregateLength, err)
 	}
@@ -69,22 +72,24 @@ func parseArray(input []byte, start int) ([]string, int, error) {
 	array := []string{}
 	for i := 0; i < arrayLen && p < len(input); i++ {
 		typeByte = input[p]
-		respType, err := GetRespType(typeByte)
+		// fmt.Printf("typeByte: %q \n", typeByte)
+		respType, err := types.GetRespType(typeByte)
 		if err != nil {
 			return nil, -1, fmt.Errorf("%w", err)
 		}
-		if respType != RespBulkStr {
+		if respType != types.RespBulkStr {
 			return nil, -1, fmt.Errorf("RESP type (%v) not supported", respType)
 		}
 
 		// test := input[p:]
 		// fmt.Printf("parsing bulk string, p: %v, test: %q \n", p, test)
-		var item string
-		item, p, err = parseBulkString(input, p)
+		item, end, err := parseBulkString(input[p:])
+		p += end
 		if err != nil {
 			return nil, -1, fmt.Errorf("failed to parse bulk string: %w", err)
 		}
 
+		// fmt.Printf("parsed bulk string: %v, p: %v \n", item, p)
 		array = append(array, item)
 	}
 
@@ -95,18 +100,18 @@ func parseArray(input []byte, start int) ([]string, int, error) {
 	return array, p, nil
 }
 
-func parseCommandString(commandStr string) (CommandSpec, error) {
-	if commandSpec, ok := CommandSpecMap[strings.ToUpper(commandStr)]; ok {
+func parseCommandString(commandStr string) (command.CommandSpec, error) {
+	if commandSpec, ok := command.CommandSpecMap[strings.ToUpper(commandStr)]; ok {
 		return commandSpec, nil
 	}
-	return CommandSpecUnknown, fmt.Errorf("unknown command: %s", commandStr)
+	return command.CommandSpecUnknown, fmt.Errorf("unknown command: %s", commandStr)
 }
 
 // Expects full input string -> array consisting only of bulk strings
 // E.g. *2\r\n $4\r\n LLEN\r\n $6\r\n mylist\r\n
 // See Redis docs on protocol spec: https://redis.io/docs/latest/develop/reference/protocol-spec/
-func ParseInput(input []byte) ([]Command, error) {
-	bulkStrArray, p, err := parseArray(input, 0)
+func ParseInput(input []byte) (command.Command, error) {
+	bulkStrArray, p, err := parseArray(input)
 	if err != nil {
 		return nil, fmt.Errorf("failed to parse input: %w", err)
 	}
@@ -116,28 +121,24 @@ func ParseInput(input []byte) ([]Command, error) {
 		return nil, fmt.Errorf("input has remaining data after parsing, extra %v bytes than expected %v", p-len(input), len(input))
 	}
 
-	commands := []Command{}
-	for i := 0; i < len(bulkStrArray); i++ {
-		commandSpec, err := parseCommandString(bulkStrArray[i])
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse command string: %w", err)
-		}
-		i++
-
-		args := []string{}
-		for j := 0; j < commandSpec.ArgCount && i < len(bulkStrArray); j++ {
-			args = append(args, bulkStrArray[i])
-			i++
-		}
-
-		if commandSpec.ArgCount != len(args) {
-			return nil, fmt.Errorf("not enough arguments for command %s, got %v, expected %v", commandSpec.Type, commandSpec.ArgCount, len(args))
-		}
-
-		command := NewCommand(commandSpec.Type, args)
-		commands = append(commands, *command)
+	if len(bulkStrArray) == 0 {
+		return nil, fmt.Errorf("input array is empty")
 	}
 
-	// fmt.Printf("commands: %v \n", commands)
-	return commands, nil
+	commandString := bulkStrArray[0]
+	commandSpec, err := parseCommandString(commandString)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse command string: %w", err)
+	}
+
+	if commandSpec.Constructor == nil {
+		return nil, fmt.Errorf("command %v constructor not implemented", commandString)
+	}
+
+	args := bulkStrArray[1:]
+	command, err := commandSpec.Constructor(args)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create command %s: %w", commandString, err)
+	}
+	return command, nil
 }
