@@ -7,12 +7,16 @@ const (
 	CommandUnknown CommandType = iota
 	CommandPing
 	CommandEcho
+	CommandSet
+	CommandGet
 )
 
 var commandName = map[CommandType]string{
 	CommandUnknown: "UNKNOWN",
 	CommandPing:    "PING",
 	CommandEcho:    "ECHO",
+	CommandSet:     "SET",
+	CommandGet:     "GET",
 }
 
 func (ct CommandType) String() string {
@@ -22,6 +26,8 @@ func (ct CommandType) String() string {
 var commandTypeMap = map[string]CommandType{
 	commandName[CommandPing]: CommandPing,
 	commandName[CommandEcho]: CommandEcho,
+	commandName[CommandSet]:  CommandSet,
+	commandName[CommandGet]:  CommandGet,
 }
 
 // --------------Command Spec-----------------
@@ -35,6 +41,8 @@ type CommandSpec struct {
 var CommandSpecMap = map[string]CommandSpec{
 	commandName[CommandPing]: {Name: commandName[CommandPing], Type: CommandPing, ArgCount: 0},
 	commandName[CommandEcho]: {Name: commandName[CommandEcho], Type: CommandEcho, ArgCount: 1, Variadic: true},
+	commandName[CommandSet]:  {Name: commandName[CommandSet], Type: CommandSet, ArgCount: 2, Variadic: true},
+	commandName[CommandGet]:  {Name: commandName[CommandGet], Type: CommandGet, ArgCount: 1},
 }
 
 var CommandSpecUnknown = CommandSpec{Name: "UNKNOWN", Type: CommandUnknown}
