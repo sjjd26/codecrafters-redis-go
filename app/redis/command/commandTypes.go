@@ -47,6 +47,7 @@ var CommandSpecMap = map[string]CommandSpec{
 	commandName[CommandEcho]: {Name: commandName[CommandEcho], Constructor: NewEcho, Type: CommandEcho, MinArgs: 1, MaxArgs: 1},
 	commandName[CommandSet]:  {Name: commandName[CommandSet], Constructor: NewSet, Type: CommandSet, MinArgs: 2, MaxArgs: 2, Variadic: true},
 	commandName[CommandGet]:  {Name: commandName[CommandGet], Constructor: NewGet, Type: CommandGet, MinArgs: 1, MaxArgs: 1, Variadic: true},
+	"CONFIG":                 {Constructor: NewConfig, MinArgs: 1, MaxArgs: 1},
 }
 
 var CommandSpecUnknown = CommandSpec{Name: "UNKNOWN", Type: CommandUnknown}
@@ -56,7 +57,3 @@ type Command interface {
 	// GetType() CommandType
 	Handle() (string, error)
 }
-
-// ------------------Common responses-------------
-const respOk = "+OK\r\n"
-const respNull = "$-1\r\n"

@@ -1,16 +1,20 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"net"
 	"os"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/parser"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 )
 
 var inputChannelQueue = make(chan chan []byte, 10)
 
 func main() {
+	initConfig()
+
 	go listen()
 
 	// main event loop
@@ -27,6 +31,15 @@ func main() {
 		}
 		inputChan <- response
 	}
+}
+
+func initConfig() {
+	dir := flag.String("dir", "/data", "Directory to store Redis data")
+	dbfilename := flag.String("dbfilename", "dump.rdb", "Filename for Redis database")
+	flag.Parse()
+
+	store.AddConfig("dir", *dir)
+	store.AddConfig("dbfilename", *dbfilename)
 }
 
 func listen() {

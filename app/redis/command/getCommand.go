@@ -26,5 +26,5 @@ func (cmd Get) Handle() (string, error) {
 	if value, ok := store.Get(cmd.key); ok {
 		return types.CreateBulkString(value), nil
 	}
-	return respNull, nil
+	return types.BulkStringNull, nil
 }

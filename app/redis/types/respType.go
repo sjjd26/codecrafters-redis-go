@@ -64,6 +64,17 @@ func CheckTypeByte(typeByte byte, expectedType RespType) error {
 	return nil
 }
 
+const BulkStringNull = "$-1\r\n"
+const OkString = "+OK\r\n"
+
 func CreateBulkString(str string) string {
 	return fmt.Sprintf("$%v\r\n%s\r\n", len(str), str)
+}
+
+func CreateKeyValueArray(key, value string) string {
+	return fmt.Sprintf("*2\r\n%s%s", CreateBulkString(key), CreateBulkString(value))
+}
+
+func CreateKeyValueNullArray(key string) string {
+	return fmt.Sprintf("*2\r\n%s%s", CreateBulkString(key), BulkStringNull)
 }

@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
 type Set struct {
@@ -41,7 +42,7 @@ func (_ Set) GetType() CommandType {
 	return CommandSet
 }
 
-func (setCmd Set) Handle() (string, error) {
-	store.Add(setCmd.key, setCmd.value, setCmd.expiry)
-	return respOk, nil
+func (cmd Set) Handle() (string, error) {
+	store.Add(cmd.key, cmd.value, cmd.expiry)
+	return types.OkString, nil
 }
