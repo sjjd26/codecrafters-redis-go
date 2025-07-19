@@ -1,6 +1,6 @@
 package redis
 
-// Command Type
+// ---------------Command Type----------------
 type CommandType int
 
 const (
@@ -24,7 +24,7 @@ var commandTypeMap = map[string]CommandType{
 	commandName[CommandEcho]: CommandEcho,
 }
 
-// Command Spec
+// --------------Command Spec-----------------
 type CommandSpec struct {
 	Name     string
 	Type     CommandType
@@ -39,7 +39,7 @@ var CommandSpecMap = map[string]CommandSpec{
 
 var CommandSpecUnknown = CommandSpec{Name: "UNKNOWN", Type: CommandUnknown}
 
-// Command
+// ------------------Command-------------------
 type Command struct {
 	Type CommandType
 	Args []string

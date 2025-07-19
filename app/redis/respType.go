@@ -53,7 +53,7 @@ func GetRespType(typeByte byte) (RespType, error) {
 }
 
 func CheckTypeByte(typeByte byte, expectedType RespType) error {
-	fmt.Printf("byte type check, %q, %v \n", typeByte, expectedType)
+	// fmt.Printf("byte type check, %q, %v \n", typeByte, expectedType)
 	respType, ok := RespTypeByteMap[typeByte]
 	if !ok {
 		return fmt.Errorf("%w: %q", ErrUnknownTypeByte, typeByte)

@@ -13,13 +13,13 @@ func getAggregateLength(input []byte, start int) (int, int, error) {
 	len := 0
 	p := start + 1
 
-	fmt.Printf("get legnth, p: %v \n", p)
+	// fmt.Printf("get legnth, p: %v \n", p)
 	for ; input[p] != '\r'; p++ {
 		digit, err := strconv.Atoi(string(input[p]))
 		if err != nil {
 			return -1, -1, fmt.Errorf("could not parse digit: %s", string(input[p]))
 		}
-		fmt.Printf("digit: %v \n", digit)
+		// fmt.Printf("digit: %v \n", digit)
 		len += (len * 10) + digit
 	}
 
@@ -29,20 +29,20 @@ func getAggregateLength(input []byte, start int) (int, int, error) {
 
 func parseBulkString(input []byte, start int) (string, int, error) {
 	// fmt.Printf("hello 2, %q \n", input)
-	fmt.Printf("parsing bulk string, input: %q, start: %v \n", input, start)
+	// fmt.Printf("parsing bulk string, input: %q, start: %v \n", input, start)
 	typeByte := input[start]
 	err := CheckTypeByte(typeByte, RespBulkStr)
 	if err != nil {
 		return "", -1, fmt.Errorf("%w: %w", ErrTypeByteCheck, err)
 	}
 
-	fmt.Println("passed type byte check")
+	// fmt.Println("passed type byte check")
 	strLen, p, err := getAggregateLength(input, start)
 	if err != nil {
 		return "", -1, fmt.Errorf("%w: %w", ErrAggregateLength, err)
 	}
 
-	fmt.Printf("str length: %v, p: %v \n", strLen, p)
+	// fmt.Printf("str length: %v, p: %v \n", strLen, p)
 	strEnd := p + strLen
 	str := string(input[p:strEnd])
 
@@ -51,7 +51,7 @@ func parseBulkString(input []byte, start int) (string, int, error) {
 }
 
 func parseArray(input []byte, start int) ([]string, int, error) {
-	fmt.Println("parsing array")
+	// fmt.Println("parsing array")
 
 	typeByte := input[start]
 	err := CheckTypeByte(typeByte, RespArray)
@@ -59,13 +59,13 @@ func parseArray(input []byte, start int) ([]string, int, error) {
 		return nil, -1, fmt.Errorf("%w: %w", ErrTypeByteCheck, err)
 	}
 
-	fmt.Println("getting length of array")
+	// fmt.Println("getting length of array")
 	arrayLen, p, err := getAggregateLength(input, start)
 	if err != nil {
 		return nil, -1, fmt.Errorf("%w: %w", ErrAggregateLength, err)
 	}
 
-	fmt.Printf("array length: %v, p: %v \n", arrayLen, p)
+	// fmt.Printf("array length: %v, p: %v \n", arrayLen, p)
 	array := []string{}
 	for i := 0; i < arrayLen && p < len(input); i++ {
 		typeByte = input[p]
@@ -77,10 +77,9 @@ func parseArray(input []byte, start int) ([]string, int, error) {
 			return nil, -1, fmt.Errorf("RESP type (%v) not supported", respType)
 		}
 
-		test := input[p:]
-		fmt.Printf("parsing bulk string, p: %v, test: %q \n", p, test)
+		// test := input[p:]
+		// fmt.Printf("parsing bulk string, p: %v, test: %q \n", p, test)
 		var item string
-		fmt.Println("hello")
 		item, p, err = parseBulkString(input, p)
 		if err != nil {
 			return nil, -1, fmt.Errorf("failed to parse bulk string: %w", err)
@@ -112,7 +111,7 @@ func ParseInput(input []byte) ([]Command, error) {
 		return nil, fmt.Errorf("failed to parse input: %w", err)
 	}
 
-	fmt.Printf("p: %v, input len: %v", p, len(input))
+	// fmt.Printf("p: %v, input len: %v", p, len(input))
 	if p > len(input)+1 {
 		return nil, fmt.Errorf("input has remaining data after parsing, extra %v bytes than expected %v", p-len(input), len(input))
 	}
@@ -128,6 +127,7 @@ func ParseInput(input []byte) ([]Command, error) {
 		args := []string{}
 		for j := 0; j < commandSpec.ArgCount && i < len(bulkStrArray); j++ {
 			args = append(args, bulkStrArray[i])
+			i++
 		}
 
 		if commandSpec.ArgCount != len(args) {
@@ -138,6 +138,6 @@ func ParseInput(input []byte) ([]Command, error) {
 		commands = append(commands, *command)
 	}
 
-	fmt.Printf("commands: %v \n", commands)
+	// fmt.Printf("commands: %v \n", commands)
 	return commands, nil
 }

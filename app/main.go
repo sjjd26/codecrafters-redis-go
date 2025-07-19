@@ -8,11 +8,28 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/redis"
 )
 
-// Ensures gofmt doesn't remove the "net" and "os" imports in stage 1 (feel free to remove this!)
-var _ = net.Listen
-var _ = os.Exit
+var inputChannelQueue = make(chan chan []byte, 10)
 
 func main() {
+	go listen()
+
+	// main event loop
+	for {
+		// fmt.Println("event loop waiting for input")
+		inputChan := <-inputChannelQueue
+		// fmt.Println("got new input channel")
+		input := <-inputChan
+		// fmt.Println("got input from channel")
+		response, err := handleInput(input)
+		if err != nil {
+			fmt.Println("Error handling input")
+			os.Exit(1)
+		}
+		inputChan <- response
+	}
+}
+
+func listen() {
 	l, err := net.Listen("tcp", "0.0.0.0:6379")
 	if err != nil {
 		fmt.Println("Failed to bind to port 6379")
@@ -21,47 +38,73 @@ func main() {
 
 	defer l.Close()
 
-	for conn, err := l.Accept(); true; conn, err = l.Accept() {
+	for {
+		// fmt.Println("listener waiting for connection")
+		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
 
-		fmt.Println("Handling connection")
 		go handleConnection(conn)
 	}
 }
 
 func handleConnection(conn net.Conn) {
-	defer conn.Close()
+	// fmt.Println("Handling new connection")
+	defer func() {
+		fmt.Printf("Finished with connection \n\n")
+		conn.Close()
+	}()
 
-	readBuf := make([]byte, 1024)
-	// writeBuf := make([]byte, 1024)
-	for n, err := conn.Read(readBuf); n != 0; n, err = conn.Read(readBuf) {
+	bufSize := 1024
+	readBuf := make([]byte, bufSize)
+	inputChan := make(chan []byte)
+
+	for {
+		n, err := conn.Read(readBuf)
 		if err != nil {
+			fmt.Println("Error reading from connection: ", err)
+			return
+		}
+		if n == 0 {
+			// Client closed connection gracefully
+			// fmt.Println("Client closed connection")
 			return
 		}
 
-		commands, err := redis.ParseInput(readBuf[:n])
-		if err != nil {
-			fmt.Printf("Could not parse input: %q, %s \n", string(readBuf[:n]), err.Error())
+		// fmt.Printf("read %v bytes \n", n)
+		inputChannelQueue <- inputChan
+		inputChan <- readBuf[:n]
+		resp := <-inputChan
+
+		// fmt.Printf("writing: %q \n", resp)
+		_, writeErr := conn.Write([]byte(resp))
+		if writeErr != nil {
+			fmt.Println("Error writing to connection:", writeErr)
 			return
-		}
-
-		fmt.Printf("commands: %v\n", commands)
-		for _, command := range commands {
-			resp, err := redis.HandleCommand(command)
-			if err != nil {
-				fmt.Printf("command %v failed: %s \n", command, err.Error())
-				return
-			}
-
-			fmt.Printf("writing: %q \n", resp)
-			conn.Write([]byte(resp))
-			// writeBuf = append(writeBuf, []byte(resp)...)
 		}
 	}
+}
 
-	// conn.Write(writeBuf)
-	// fmt.Println("Finished with connection")
+func handleInput(input []byte) ([]byte, error) {
+	// fmt.Println("handling new input...")
+
+	commands, err := redis.ParseInput(input)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse input: %q, %w", string(input), err)
+	}
+
+	inputResp := []byte{}
+	for _, command := range commands {
+		cmdResp, err := redis.HandleCommand(command)
+		if err != nil {
+			return nil, fmt.Errorf("command %v failed: %w", command, err)
+		}
+
+		// fmt.Printf("adding response: %q \n", cmdResp)
+		inputResp = append(inputResp, []byte(cmdResp)...)
+	}
+
+	return inputResp, nil
 }
