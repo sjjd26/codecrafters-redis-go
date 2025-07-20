@@ -23,7 +23,8 @@ func (_ Get) GetType() CommandType {
 }
 
 func (cmd Get) Handle() (string, error) {
-	if value, ok := store.Get(cmd.key); ok {
+	rStore := store.NewRedisStore()
+	if value, ok := rStore.Get(cmd.key); ok {
 		return types.CreateBulkString(value), nil
 	}
 	return types.BulkStringNull, nil

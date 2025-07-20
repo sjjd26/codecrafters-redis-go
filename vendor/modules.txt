@@ -1,0 +1,8 @@
+# github.com/hdt3213/rdb v1.2.0
+## explicit; go 1.16
+github.com/hdt3213/rdb/core
+github.com/hdt3213/rdb/crc64jones
+github.com/hdt3213/rdb/lzf
+github.com/hdt3213/rdb/memprofiler
+github.com/hdt3213/rdb/model
+github.com/hdt3213/rdb/parser

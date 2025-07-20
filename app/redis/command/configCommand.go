@@ -3,12 +3,12 @@ package command
 import (
 	"strings"
 
-	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
 type ConfigGet struct {
-	key string
+	key redisConfig.ConfigKey
 }
 
 func NewConfig(args []string) (Command, error) {
@@ -35,18 +35,18 @@ func NewGetCommand(args []string) (Command, error) {
 		return nil, ErrTooManyArgs
 	}
 
-	key := args[0]
+	key, err := redisConfig.NewConfigKey(args[0])
+	if err != nil {
+		return nil, err
+	}
 	return ConfigGet{key: key}, nil
 }
 
-// func (c ConfigGet) GetType() CommandType {
-// 	return CommandConfigGet
-// }
-
 func (cmd ConfigGet) Handle() (string, error) {
-	value, ok := store.GetConfig(cmd.key)
+	rConfig := redisConfig.NewRedisConfig()
+	value, ok := rConfig.Get(cmd.key)
 	if ok {
-		return types.CreateKeyValueArray(cmd.key, value), nil
+		return types.CreateKeyValueArray(string(cmd.key), value), nil
 	}
-	return types.CreateKeyValueNullArray(cmd.key), nil
+	return types.CreateKeyValueNullArray(string(cmd.key)), nil
 }

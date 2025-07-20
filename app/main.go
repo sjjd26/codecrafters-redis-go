@@ -7,6 +7,7 @@ import (
 	"os"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/parser"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 )
 
@@ -38,8 +39,15 @@ func initConfig() {
 	dbfilename := flag.String("dbfilename", "dump.rdb", "Filename for Redis database")
 	flag.Parse()
 
-	store.AddConfig("dir", *dir)
-	store.AddConfig("dbfilename", *dbfilename)
+	config := redisConfig.NewRedisConfig()
+	config.Set(redisConfig.ConfigDir, *dir)
+	config.Set(redisConfig.ConfigDbFilename, *dbfilename)
+
+	redisStore := store.NewRedisStore()
+	err := redisStore.RdbRestore()
+	if err != nil {
+		fmt.Println(err)
+	}
 }
 
 func listen() {

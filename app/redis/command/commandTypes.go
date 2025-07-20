@@ -1,5 +1,7 @@
 package command
 
+import "fmt"
+
 // ---------------Command Type----------------
 type CommandType int
 
@@ -9,6 +11,7 @@ const (
 	CommandEcho
 	CommandSet
 	CommandGet
+	CommandConfig
 )
 
 var commandName = map[CommandType]string{
@@ -17,43 +20,54 @@ var commandName = map[CommandType]string{
 	CommandEcho:    "ECHO",
 	CommandSet:     "SET",
 	CommandGet:     "GET",
+	CommandConfig:  "CONFIG",
 }
 
 func (ct CommandType) String() string {
 	return commandName[ct]
 }
 
-var commandTypeMap = map[string]CommandType{
-	commandName[CommandPing]: CommandPing,
-	commandName[CommandEcho]: CommandEcho,
-	commandName[CommandSet]:  CommandSet,
-	commandName[CommandGet]:  CommandGet,
-}
-
-// --------------Command Spec-----------------
+// --------------Command Constructors-----------------
 type CommandConstructor func([]string) (Command, error)
 
-type CommandSpec struct {
-	Name        string
-	Constructor CommandConstructor
-	Type        CommandType
-	MinArgs     int
-	MaxArgs     int
-	Variadic    bool
+var CommandConstructorMap = map[string]CommandConstructor{
+	commandName[CommandPing]:   NewPing,
+	commandName[CommandEcho]:   NewEcho,
+	commandName[CommandSet]:    NewSet,
+	commandName[CommandGet]:    NewGet,
+	commandName[CommandConfig]: NewConfig,
 }
-
-var CommandSpecMap = map[string]CommandSpec{
-	commandName[CommandPing]: {Name: commandName[CommandPing], Constructor: NewPing, Type: CommandPing, MinArgs: 0, MaxArgs: 1},
-	commandName[CommandEcho]: {Name: commandName[CommandEcho], Constructor: NewEcho, Type: CommandEcho, MinArgs: 1, MaxArgs: 1},
-	commandName[CommandSet]:  {Name: commandName[CommandSet], Constructor: NewSet, Type: CommandSet, MinArgs: 2, MaxArgs: 2, Variadic: true},
-	commandName[CommandGet]:  {Name: commandName[CommandGet], Constructor: NewGet, Type: CommandGet, MinArgs: 1, MaxArgs: 1, Variadic: true},
-	"CONFIG":                 {Constructor: NewConfig, MinArgs: 1, MaxArgs: 1},
-}
-
-var CommandSpecUnknown = CommandSpec{Name: "UNKNOWN", Type: CommandUnknown}
 
 // ------------------Command-------------------
 type Command interface {
 	// GetType() CommandType
 	Handle() (string, error)
 }
+
+func CommandFactory(name string, args []string) (Command, error) {
+	constructor, ok := CommandConstructorMap[name]
+	if !ok {
+		return nil, fmt.Errorf("unknown command: %s", name)
+	}
+	return constructor(args)
+}
+
+// -----------------------------------------
+
+type KeyValuePair struct {
+	Key   string
+	Value string
+}
+
+type CommandArguments interface {
+	GetPositionalArgs() []KeyValuePair
+	GetNamedArgs() map[string]string
+	GetVariadicArgs() []string
+}
+
+type CommandArgumentsSpec interface {
+	GetPositionalArgKeys() []string
+	GetNamedArgs() map[string]string
+}
+
+// --------------------------------------

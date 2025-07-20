@@ -100,20 +100,35 @@ func parseArray(input []byte) ([]string, int, error) {
 	return array, p, nil
 }
 
-func parseCommandString(commandStr string) (command.CommandSpec, error) {
-	if commandSpec, ok := command.CommandSpecMap[strings.ToUpper(commandStr)]; ok {
-		return commandSpec, nil
+func parseCommand(parts []string) (command.Command, error) {
+	if len(parts) == 0 {
+		return nil, fmt.Errorf("empty command")
 	}
-	return command.CommandSpecUnknown, fmt.Errorf("unknown command: %s", commandStr)
+
+	commandName := strings.ToUpper(parts[0])
+	commandArgs := []string{}
+	if len(parts) > 1 {
+		commandArgs = parts[1:]
+	}
+
+	command, err := command.CommandFactory(commandName, commandArgs)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create command %s: %w", commandName, err)
+	}
+	return command, nil
 }
 
 // Expects full input string -> array consisting only of bulk strings
 // E.g. *2\r\n $4\r\n LLEN\r\n $6\r\n mylist\r\n
 // See Redis docs on protocol spec: https://redis.io/docs/latest/develop/reference/protocol-spec/
 func ParseInput(input []byte) (command.Command, error) {
-	bulkStrArray, p, err := parseArray(input)
+	if len(input) == 0 {
+		return nil, fmt.Errorf("input is empty")
+	}
+
+	commandParts, p, err := parseArray(input)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse input: %w", err)
+		return nil, fmt.Errorf("failed to parse input array: %w", err)
 	}
 
 	// fmt.Printf("p: %v, input len: %v", p, len(input))
@@ -121,24 +136,13 @@ func ParseInput(input []byte) (command.Command, error) {
 		return nil, fmt.Errorf("input has remaining data after parsing, extra %v bytes than expected %v", p-len(input), len(input))
 	}
 
-	if len(bulkStrArray) == 0 {
+	if len(commandParts) == 0 {
 		return nil, fmt.Errorf("input array is empty")
 	}
 
-	commandString := bulkStrArray[0]
-	commandSpec, err := parseCommandString(commandString)
+	command, err := parseCommand(commandParts)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse command string: %w", err)
-	}
-
-	if commandSpec.Constructor == nil {
-		return nil, fmt.Errorf("command %v constructor not implemented", commandString)
-	}
-
-	args := bulkStrArray[1:]
-	command, err := commandSpec.Constructor(args)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create command %s: %w", commandString, err)
+		return nil, fmt.Errorf("failed to parse command %s: %w", commandParts[0], err)
 	}
 	return command, nil
 }

@@ -12,7 +12,7 @@ import (
 type Set struct {
 	key    string
 	value  string
-	expiry int
+	expiry int64
 }
 
 func NewSet(args []string) (Command, error) {
@@ -21,7 +21,7 @@ func NewSet(args []string) (Command, error) {
 	}
 	key := args[0]
 	value := args[1]
-	expiry := 0
+	expiry := int64(0)
 
 	if len(args) > 3 {
 		isPx := strings.ToUpper(args[2]) == "PX"
@@ -29,7 +29,7 @@ func NewSet(args []string) (Command, error) {
 			return nil, fmt.Errorf("argument type %v not implemented", args[2])
 		}
 		var err error
-		expiry, err = strconv.Atoi(args[3])
+		expiry, err = strconv.ParseInt(args[3], 10, 64)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse expiry value %v: %w", args[3], err)
 		}
@@ -43,6 +43,10 @@ func (_ Set) GetType() CommandType {
 }
 
 func (cmd Set) Handle() (string, error) {
-	store.Add(cmd.key, cmd.value, cmd.expiry)
+	rStore := store.NewRedisStore()
+	rStore.Add(cmd.key, cmd.value)
+	if cmd.expiry > 0 {
+		rStore.AddExpiry(cmd.key, cmd.expiry)
+	}
 	return types.OkString, nil
 }
