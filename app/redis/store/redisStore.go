@@ -1,0 +1,119 @@
+package store
+
+import (
+	"fmt"
+	"os"
+	"time"
+
+	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
+	"github.com/hdt3213/rdb/parser"
+)
+
+var redisStore RedisStore = nil
+
+type RedisStore interface {
+	Add(key string, value string) bool
+	AddExpiry(key string, expiry int64) error
+	Get(key string) (string, bool)
+	RdbRestore() error
+}
+
+type RedisStoreImpl struct {
+	valueStore  map[string]string
+	expiryStore map[string]int64
+	config      redisConfig.RedisConfig
+}
+
+func NewRedisStore() RedisStore {
+	if redisStore == nil {
+		redisStore = &RedisStoreImpl{
+			valueStore:  make(map[string]string),
+			expiryStore: make(map[string]int64),
+			config:      redisConfig.NewRedisConfig(),
+		}
+	}
+	return redisStore
+}
+
+// Add adds a key-value pair to the store.
+// Returns true if the key already existed, false otherwise.
+func (rs RedisStoreImpl) Add(key string, value string) bool {
+	_, exists := rs.valueStore[key]
+	rs.valueStore[key] = value
+	return exists
+}
+
+func (rs RedisStoreImpl) AddExpiry(key string, expiry int64) error {
+	if _, exists := rs.valueStore[key]; !exists {
+		return fmt.Errorf("key %s does not exist", key)
+	}
+	now := time.Now().UnixMilli()
+	rs.expiryStore[key] = now + expiry
+	return nil
+}
+
+func (rs RedisStoreImpl) Get(key string) (string, bool) {
+	value, ok := rs.valueStore[key]
+	if !ok {
+		return "", false
+	}
+
+	var expiry int64
+	if expiry, ok = rs.expiryStore[key]; !ok || expiry == 0 {
+		return value, true
+	}
+
+	now := time.Now().UnixMilli()
+	if now > expiry {
+		delete(rs.valueStore, key)
+		delete(rs.expiryStore, key)
+		return "", false
+	}
+
+	return value, true
+}
+
+func (rs RedisStoreImpl) RdbRestore() error {
+	dir, ok := rs.config.Get(redisConfig.ConfigDir)
+	if !ok {
+		return fmt.Errorf("no config value set for key %s", redisConfig.ConfigDir)
+	}
+	dbFilename, ok := rs.config.Get(redisConfig.ConfigDbFilename)
+	if !ok {
+		return fmt.Errorf("no config value set for key %s", redisConfig.ConfigDbFilename)
+	}
+
+	file, err := os.Open(fmt.Sprintf("%s/%s", dir, dbFilename))
+	if err != nil {
+		return err
+	}
+	defer file.Close()
+
+	decoder := parser.NewDecoder(file)
+	err = decoder.Parse(func(o parser.RedisObject) bool {
+		switch o.GetType() {
+		case parser.StringType:
+			str := o.(*parser.StringObject)
+			fmt.Printf("%s: %q \n", str.Key, str.Value)
+		case parser.ListType:
+			list := o.(*parser.ListObject)
+			println(list.Key, list.Values)
+		case parser.HashType:
+			hash := o.(*parser.HashObject)
+			println(hash.Key, hash.Hash)
+		case parser.ZSetType:
+			zset := o.(*parser.ZSetObject)
+			println(zset.Key, zset.Entries)
+		case parser.StreamType:
+			stream := o.(*parser.StreamObject)
+			println(stream.Entries, stream.Groups)
+		}
+		// return true to continue, return false to stop the iteration
+		return true
+	})
+	if err != nil {
+		panic(err)
+	}
+
+	return nil
+}
