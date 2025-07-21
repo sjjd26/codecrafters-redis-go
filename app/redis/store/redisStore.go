@@ -49,8 +49,11 @@ func (rs RedisStoreImpl) AddExpiry(key string, expiry int64) error {
 	if _, exists := rs.valueStore[key]; !exists {
 		return fmt.Errorf("key %s does not exist", key)
 	}
-	now := time.Now().UnixMilli()
-	rs.expiryStore[key] = now + expiry
+	if expiry == 0 {
+		delete(rs.expiryStore, key)
+		return nil
+	}
+	rs.expiryStore[key] = expiry
 	return nil
 }
 
@@ -100,6 +103,9 @@ func (rs RedisStoreImpl) RdbRestore() error {
 
 	for _, strObj := range stringObjects {
 		rs.Add(strObj.Key, string(strObj.Value))
+		if strObj.Expiration != nil {
+			rs.AddExpiry(strObj.Key, strObj.Expiration.UnixMilli())
+		}
 	}
 
 	return nil

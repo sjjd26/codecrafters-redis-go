@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
@@ -46,7 +47,8 @@ func (cmd Set) Handle() (string, error) {
 	rStore := store.NewRedisStore()
 	rStore.Add(cmd.key, cmd.value)
 	if cmd.expiry > 0 {
-		rStore.AddExpiry(cmd.key, cmd.expiry)
+		now := time.Now().UnixMilli()
+		rStore.AddExpiry(cmd.key, cmd.expiry+now)
 	}
 	return types.OkString, nil
 }
