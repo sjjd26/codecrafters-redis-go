@@ -1,6 +1,9 @@
 package command
 
-import "github.com/codecrafters-io/redis-starter-go/app/redis/store"
+import (
+	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
+)
 
 type KeysCommand struct {
 	pattern string

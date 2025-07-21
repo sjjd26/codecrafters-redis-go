@@ -12,6 +12,7 @@ const (
 	CommandSet
 	CommandGet
 	CommandConfig
+	CommandKeys
 )
 
 var commandName = map[CommandType]string{
@@ -21,6 +22,7 @@ var commandName = map[CommandType]string{
 	CommandSet:     "SET",
 	CommandGet:     "GET",
 	CommandConfig:  "CONFIG",
+	CommandKeys:    "KEYS",
 }
 
 func (ct CommandType) String() string {
@@ -36,6 +38,7 @@ var CommandConstructorMap = map[string]CommandConstructor{
 	commandName[CommandSet]:    NewSet,
 	commandName[CommandGet]:    NewGet,
 	commandName[CommandConfig]: NewConfig,
+	commandName[CommandKeys]:   NewKeysCommand,
 }
 
 // ------------------Command-------------------
