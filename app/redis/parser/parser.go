@@ -23,7 +23,7 @@ func getAggregateLength(input []byte) (int, int, error) {
 			return -1, -1, fmt.Errorf("could not parse digit: %s", string(input[p]))
 		}
 		// fmt.Printf("digit: %v \n", digit)
-		len += (len * 10) + digit
+		len = (len * 10) + digit
 	}
 
 	// Add 1 for RF
