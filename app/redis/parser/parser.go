@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
@@ -100,7 +101,7 @@ func parseArray(input []byte) ([]string, int, error) {
 	return array, p, nil
 }
 
-func parseCommand(parts []string) (command.Command, error) {
+func parseCommand(parts []string) (interfaces.Command, error) {
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}
@@ -121,7 +122,7 @@ func parseCommand(parts []string) (command.Command, error) {
 // Expects full input string -> array consisting only of bulk strings
 // E.g. *2\r\n $4\r\n LLEN\r\n $6\r\n mylist\r\n
 // See Redis docs on protocol spec: https://redis.io/docs/latest/develop/reference/protocol-spec/
-func ParseInput(input []byte) (command.Command, error) {
+func ParseInput(input []byte) (interfaces.Command, error) {
 	if len(input) == 0 {
 		return nil, fmt.Errorf("input is empty")
 	}

@@ -1,6 +1,8 @@
 package command
 
 import (
+	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
@@ -9,12 +11,12 @@ type KeysCommand struct {
 	pattern string
 }
 
-func NewKeysCommand(args []string) (Command, error) {
+func NewKeysCommand(args []string) (interfaces.Command, error) {
 	if len(args) < 1 {
-		return nil, ErrNotEnoughArgs
+		return nil, cmderrors.ErrNotEnoughArgs
 	}
 	if len(args) > 1 {
-		return nil, ErrTooManyArgs
+		return nil, cmderrors.ErrTooManyArgs
 	}
 
 	return &KeysCommand{pattern: args[0]}, nil

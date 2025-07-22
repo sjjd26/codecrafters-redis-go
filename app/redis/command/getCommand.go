@@ -1,6 +1,8 @@
 package command
 
 import (
+	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
@@ -9,9 +11,9 @@ type Get struct {
 	key string
 }
 
-func NewGet(args []string) (Command, error) {
+func NewGet(args []string) (interfaces.Command, error) {
 	if len(args) < 1 {
-		return nil, ErrNotEnoughArgs
+		return nil, cmderrors.ErrNotEnoughArgs
 	}
 
 	key := args[0]

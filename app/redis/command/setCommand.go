@@ -6,6 +6,8 @@ import (
 	"strings"
 	"time"
 
+	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
@@ -16,9 +18,9 @@ type Set struct {
 	expiry int64
 }
 
-func NewSet(args []string) (Command, error) {
+func NewSet(args []string) (interfaces.Command, error) {
 	if len(args) < 2 {
-		return nil, ErrNotEnoughArgs
+		return nil, cmderrors.ErrNotEnoughArgs
 	}
 	key := args[0]
 	value := args[1]

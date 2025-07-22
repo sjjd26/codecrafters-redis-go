@@ -1,6 +1,11 @@
 package command
 
-import "fmt"
+import (
+	"fmt"
+
+	infocommand "github.com/codecrafters-io/redis-starter-go/app/redis/command/infoCommand"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
+)
 
 // ---------------Command Type----------------
 type CommandType int
@@ -13,6 +18,7 @@ const (
 	CommandGet
 	CommandConfig
 	CommandKeys
+	CommandInfo
 )
 
 var commandName = map[CommandType]string{
@@ -23,6 +29,7 @@ var commandName = map[CommandType]string{
 	CommandGet:     "GET",
 	CommandConfig:  "CONFIG",
 	CommandKeys:    "KEYS",
+	CommandInfo:    "INFO",
 }
 
 func (ct CommandType) String() string {
@@ -30,7 +37,7 @@ func (ct CommandType) String() string {
 }
 
 // --------------Command Constructors-----------------
-type CommandConstructor func([]string) (Command, error)
+type CommandConstructor func([]string) (interfaces.Command, error)
 
 var CommandConstructorMap = map[string]CommandConstructor{
 	commandName[CommandPing]:   NewPing,
@@ -39,15 +46,11 @@ var CommandConstructorMap = map[string]CommandConstructor{
 	commandName[CommandGet]:    NewGet,
 	commandName[CommandConfig]: NewConfig,
 	commandName[CommandKeys]:   NewKeysCommand,
+	commandName[CommandInfo]:   infocommand.NewInfoCommand,
 }
 
 // ------------------Command-------------------
-type Command interface {
-	// GetType() CommandType
-	Handle() (string, error)
-}
-
-func CommandFactory(name string, args []string) (Command, error) {
+func CommandFactory(name string, args []string) (interfaces.Command, error) {
 	constructor, ok := CommandConstructorMap[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown command: %s", name)

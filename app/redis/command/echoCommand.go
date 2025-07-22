@@ -1,6 +1,8 @@
 package command
 
 import (
+	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
@@ -8,11 +10,11 @@ type Echo struct {
 	Message string
 }
 
-func NewEcho(args []string) (Command, error) {
+func NewEcho(args []string) (interfaces.Command, error) {
 	if len(args) == 0 {
-		return nil, ErrNotEnoughArgs
+		return nil, cmderrors.ErrNotEnoughArgs
 	} else if len(args) > 1 {
-		return nil, ErrTooManyArgs
+		return nil, cmderrors.ErrTooManyArgs
 	}
 
 	return Echo{Message: args[0]}, nil

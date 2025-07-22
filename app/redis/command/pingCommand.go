@@ -1,6 +1,8 @@
 package command
 
 import (
+	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
@@ -8,9 +10,9 @@ type Ping struct {
 	message string
 }
 
-func NewPing(args []string) (Command, error) {
+func NewPing(args []string) (interfaces.Command, error) {
 	if len(args) > 1 {
-		return nil, ErrTooManyArgs
+		return nil, cmderrors.ErrTooManyArgs
 	}
 
 	if len(args) > 0 {
