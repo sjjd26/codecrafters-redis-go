@@ -14,9 +14,13 @@ import (
 var inputChannelQueue = make(chan chan []byte, 10)
 
 func main() {
-	initConfig()
+	port := flag.Int("port", 6379, "Port to listen on")
+	dir := flag.String("dir", "/data", "Directory to store data files")
+	dbfilename := flag.String("dbfilename", "dump.rdb", "Filename for the database dump")
+	flag.Parse()
 
-	go listen()
+	initConfig(dir, dbfilename)
+	go listen(*port)
 
 	// main event loop
 	for {
@@ -34,11 +38,7 @@ func main() {
 	}
 }
 
-func initConfig() {
-	dir := flag.String("dir", "/data", "Directory to store Redis data")
-	dbfilename := flag.String("dbfilename", "dump.rdb", "Filename for Redis database")
-	flag.Parse()
-
+func initConfig(dir, dbfilename *string) {
 	config := redisConfig.NewRedisConfig()
 	config.Set(redisConfig.ConfigDir, *dir)
 	config.Set(redisConfig.ConfigDbFilename, *dbfilename)
@@ -50,10 +50,10 @@ func initConfig() {
 	}
 }
 
-func listen() {
-	l, err := net.Listen("tcp", "0.0.0.0:6379")
+func listen(port int) {
+	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
-		fmt.Println("Failed to bind to port 6379")
+		fmt.Printf("Failed to bind to port %d\n", port)
 		os.Exit(1)
 	}
 
@@ -84,13 +84,16 @@ func handleConnection(conn net.Conn) {
 
 	for {
 		n, err := conn.Read(readBuf)
-		if err != nil {
+		if err != nil && err.Error() == "EOF" {
+			// fmt.Println("Client closed connection")
+			return
+		} else if err != nil {
 			fmt.Println("Error reading from connection: ", err)
 			return
 		}
 		if n == 0 {
 			// Client closed connection gracefully
-			// fmt.Println("Client closed connection")
+			// fmt.Println("Finished reading from connection")
 			return
 		}
 
