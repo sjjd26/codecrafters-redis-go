@@ -46,12 +46,9 @@ func initConfig(dir, dbfilename, replicaOf *string, port int) {
 	config.Set(redisConfig.ConfigDir, *dir)
 	config.Set(redisConfig.ConfigDbFilename, *dbfilename)
 
-	replicationDetails := &redisConfig.ReplicationDetails{
-		Role: redisConfig.RoleMaster,
-		SelfDetails: &redisConfig.HostDetails{
-			Host: "localhost",
-			Port: port,
-		},
+	replicationDetails, err := redisConfig.NewReplicationDetails(redisConfig.RoleMaster, port)
+	if err != nil {
+		panic(err)
 	}
 	if *replicaOf != "" {
 		masterHost := strings.Split(*replicaOf, " ")
@@ -73,7 +70,7 @@ func initConfig(dir, dbfilename, replicaOf *string, port int) {
 	config.SetReplicationDetails(replicationDetails)
 
 	redisStore := store.NewRedisStore()
-	err := redisStore.RdbRestore()
+	err = redisStore.RdbRestore()
 	if err != nil {
 		fmt.Println(err)
 	}
