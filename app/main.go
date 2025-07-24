@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/parser"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
@@ -17,9 +19,10 @@ func main() {
 	port := flag.Int("port", 6379, "Port to listen on")
 	dir := flag.String("dir", "/data", "Directory to store data files")
 	dbfilename := flag.String("dbfilename", "dump.rdb", "Filename for the database dump")
+	replicaOf := flag.String("replicaof", "", "'<Host> <port>' of the master node to replicate from (optional)")
 	flag.Parse()
 
-	initConfig(dir, dbfilename)
+	initConfig(dir, dbfilename, replicaOf, *port)
 	go listen(*port)
 
 	// main event loop
@@ -38,10 +41,36 @@ func main() {
 	}
 }
 
-func initConfig(dir, dbfilename *string) {
+func initConfig(dir, dbfilename, replicaOf *string, port int) {
 	config := redisConfig.NewRedisConfig()
 	config.Set(redisConfig.ConfigDir, *dir)
 	config.Set(redisConfig.ConfigDbFilename, *dbfilename)
+
+	replicationDetails := &redisConfig.ReplicationDetails{
+		Role: redisConfig.RoleMaster,
+		SelfDetails: &redisConfig.HostDetails{
+			Host: "localhost",
+			Port: port,
+		},
+	}
+	if *replicaOf != "" {
+		masterHost := strings.Split(*replicaOf, " ")
+		if len(masterHost) != 2 {
+			fmt.Println("Invalid replicaOf format. Use '<host> <port>'")
+			os.Exit(1)
+		}
+		masterPort, err := strconv.Atoi(masterHost[1])
+		if err != nil {
+			fmt.Println("Invalid port number:", masterHost[1])
+			os.Exit(1)
+		}
+		replicationDetails.MasterDetails = &redisConfig.HostDetails{
+			Host: masterHost[0],
+			Port: masterPort,
+		}
+		replicationDetails.Role = redisConfig.RoleSlave
+	}
+	config.SetReplicationDetails(replicationDetails)
 
 	redisStore := store.NewRedisStore()
 	err := redisStore.RdbRestore()

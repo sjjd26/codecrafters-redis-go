@@ -41,10 +41,10 @@ func NewGetCommand(args []string) (interfaces.Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	return ConfigGet{key: key}, nil
+	return &ConfigGet{key: key}, nil
 }
 
-func (cmd ConfigGet) Handle() (string, error) {
+func (cmd *ConfigGet) Handle() (string, error) {
 	rConfig := redisConfig.NewRedisConfig()
 	value, ok := rConfig.Get(cmd.key)
 	if ok {
