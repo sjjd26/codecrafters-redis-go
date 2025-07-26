@@ -66,6 +66,10 @@ func initConfig(dir, dbfilename, replicaOf *string, port int) {
 			Port: masterPort,
 		}
 		replicationDetails.Role = redisConfig.RoleSlave
+
+		if _, err := replicationDetails.SendHandshake(); err != nil {
+			panic(err)
+		}
 	}
 	config.SetReplicationDetails(replicationDetails)
 
