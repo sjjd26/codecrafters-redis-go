@@ -15,25 +15,38 @@ type RedisInstance struct {
 	Store  store.RedisStore
 	Parser parser.RedisParser
 
-	inputChannelQueue chan chan []byte
+	inputChannelQueue  chan chan []byte
+	replicationDetails *redisConfig.ReplicationDetails
 }
 
-func NewRedisInstance() *RedisInstance {
+func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (*RedisInstance, error) {
 	config := redisConfig.NewRedisConfig()
 	store := store.NewRedisStore()
 	parser := &parser.RedisParserImpl{}
-	channelQueue := make(chan chan []byte, 20)
+	channelQueue := make(chan chan []byte, 10)
 
-	return &RedisInstance{
-		Config:            config,
-		Store:             store,
-		Parser:            parser,
-		inputChannelQueue: channelQueue,
+	replicationDetails, err := redisConfig.NewReplicationDetails(selfDetails, masterDetails)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create replication details: %w", err)
 	}
+
+	instance := &RedisInstance{
+		Config:             config,
+		Store:              store,
+		Parser:             parser,
+		inputChannelQueue:  channelQueue,
+		replicationDetails: replicationDetails,
+	}
+
+	if masterDetails != nil {
+		instance.Handshake()
+	}
+
+	return instance, nil
 }
 
-func (inst *RedisInstance) ListenAndRun(port int) {
-	go inst.Listen(port)
+func (inst *RedisInstance) ListenAndRun() {
+	go inst.Listen()
 	inst.RunMainEventLoop()
 }
 
@@ -52,7 +65,8 @@ func (inst *RedisInstance) RunMainEventLoop() {
 	}
 }
 
-func (inst *RedisInstance) Listen(port int) {
+func (inst *RedisInstance) Listen() {
+	port := inst.replicationDetails.SelfDetails.Port
 	l, err := net.Listen("tcp", fmt.Sprintf("0.0.0.0:%d", port))
 	if err != nil {
 		fmt.Printf("Failed to bind to port %d\n", port)
@@ -132,4 +146,28 @@ func (inst *RedisInstance) handleConnection(conn net.Conn) error {
 			return writeErr
 		}
 	}
+}
+
+func (inst *RedisInstance) RestoreFromRdb() error {
+	dir, ok := inst.Config.Get(redisConfig.ConfigDir)
+	if !ok {
+		return fmt.Errorf("dir config value cannot be nil")
+	}
+	dbfilename, ok := inst.Config.Get(redisConfig.ConfigDbFilename)
+	if !ok {
+		return fmt.Errorf("dbfilename config value cannot be nil")
+	}
+
+	filepath := fmt.Sprintf("%s/%s", dir, dbfilename)
+	restorer := NewRdbRestorer(inst.Store)
+	err := restorer.RestoreFromRdb(filepath)
+	if err != nil {
+		return fmt.Errorf("restoration from rdb failed: %w", err)
+	}
+
+	return nil
+}
+
+func (inst *RedisInstance) Handshake() error {
+	return nil
 }

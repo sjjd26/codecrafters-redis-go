@@ -9,59 +9,92 @@ import (
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 )
 
 var inputChannelQueue = make(chan chan []byte, 10)
 
 func main() {
 	port := flag.Int("port", 6379, "Port to listen on")
-	dir := flag.String("dir", "/data", "Directory to store data files")
-	dbfilename := flag.String("dbfilename", "dump.rdb", "Filename for the database dump")
+	dir := flag.String("dir", "", "Directory to store data files")
+	dbfilename := flag.String("dbfilename", "", "Filename for the database dump")
 	replicaOf := flag.String("replicaof", "", "'<Host> <port>' of the master node to replicate from (optional)")
 	flag.Parse()
 
-	initConfig(dir, dbfilename, replicaOf, *port)
-
-	redisInstance := redis.NewRedisInstance()
-	redisInstance.ListenAndRun(*port)
-}
-
-func initConfig(dir, dbfilename, replicaOf *string, port int) {
-	config := redisConfig.NewRedisConfig()
-	config.Set(redisConfig.ConfigDir, *dir)
-	config.Set(redisConfig.ConfigDbFilename, *dbfilename)
-
-	replicationDetails, err := redisConfig.NewReplicationDetails(redisConfig.RoleMaster, port)
+	selfDetails, masterDetails := CreateHostDetails(*port, *replicaOf)
+	redisInstance, err := redis.NewRedisInstance(selfDetails, masterDetails)
 	if err != nil {
 		panic(err)
 	}
-	if *replicaOf != "" {
-		masterHost := strings.Split(*replicaOf, " ")
-		if len(masterHost) != 2 {
+
+	SetRdb(*dir, *dbfilename, redisInstance)
+
+	redisInstance.ListenAndRun()
+}
+
+func SetRdb(dir, dbfilename string, redisInstance *redis.RedisInstance) {
+	if dir != "" && dbfilename != "" {
+		redisInstance.Config.Set(redisConfig.ConfigDir, dir)
+		redisInstance.Config.Set(redisConfig.ConfigDbFilename, dbfilename)
+		redisInstance.RestoreFromRdb()
+	}
+}
+
+func CreateHostDetails(selfPort int, replicaOf string) (*redisConfig.HostDetails, *redisConfig.HostDetails) {
+	selfDetails := &redisConfig.HostDetails{
+		Host: "localhost",
+		Port: selfPort,
+	}
+	var masterDetails *redisConfig.HostDetails = nil
+
+	if replicaOf != "" {
+		parts := strings.Split(replicaOf, " ")
+		if len(parts) != 2 {
 			fmt.Println("Invalid replicaOf format. Use '<host> <port>'")
 			os.Exit(1)
 		}
-		masterPort, err := strconv.Atoi(masterHost[1])
+		masterPort, err := strconv.Atoi(parts[1])
 		if err != nil {
-			fmt.Println("Invalid port number:", masterHost[1])
+			fmt.Println("Invalid port number:", parts[1])
 			os.Exit(1)
 		}
-		replicationDetails.MasterDetails = &redisConfig.HostDetails{
-			Host: masterHost[0],
+		masterDetails = &redisConfig.HostDetails{
+			Host: parts[0],
 			Port: masterPort,
 		}
-		replicationDetails.Role = redisConfig.RoleSlave
-
-		if _, err := replicationDetails.SendHandshake(); err != nil {
-			panic(err)
-		}
 	}
-	config.SetReplicationDetails(replicationDetails)
 
-	redisStore := store.NewRedisStore()
-	err = redisStore.RdbRestore()
-	if err != nil {
-		fmt.Println(err)
-	}
+	return selfDetails, masterDetails
 }
+
+// func initConfig(dir, dbfilename, replicaOf *string, port int) {
+// 	config := redisConfig.NewRedisConfig()
+// 	config.Set(redisConfig.ConfigDir, *dir)
+// 	config.Set(redisConfig.ConfigDbFilename, *dbfilename)
+
+// 	replicationDetails, err := redisConfig.NewReplicationDetails(redisConfig.RoleMaster, port)
+// 	if err != nil {
+// 		panic(err)
+// 	}
+// 	if *replicaOf != "" {
+// 		masterHost := strings.Split(*replicaOf, " ")
+// 		if len(masterHost) != 2 {
+// 			fmt.Println("Invalid replicaOf format. Use '<host> <port>'")
+// 			os.Exit(1)
+// 		}
+// 		masterPort, err := strconv.Atoi(masterHost[1])
+// 		if err != nil {
+// 			fmt.Println("Invalid port number:", masterHost[1])
+// 			os.Exit(1)
+// 		}
+// 		replicationDetails.MasterDetails = &redisConfig.HostDetails{
+// 			Host: masterHost[0],
+// 			Port: masterPort,
+// 		}
+// 		replicationDetails.Role = redisConfig.RoleSlave
+
+// 		if _, err := replicationDetails.SendHandshake(); err != nil {
+// 			panic(err)
+// 		}
+// 	}
+// 	config.SetReplicationDetails(replicationDetails)
+// }
