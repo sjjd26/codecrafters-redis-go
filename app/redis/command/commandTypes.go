@@ -5,6 +5,7 @@ import (
 
 	infocommand "github.com/codecrafters-io/redis-starter-go/app/redis/command/infoCommand"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
+	replicationconfig "github.com/codecrafters-io/redis-starter-go/app/redis/command/replicationConfigCommand"
 )
 
 // ---------------Command Type----------------
@@ -19,17 +20,19 @@ const (
 	CommandConfig
 	CommandKeys
 	CommandInfo
+	CommandReplicationConfig
 )
 
 var commandName = map[CommandType]string{
-	CommandUnknown: "UNKNOWN",
-	CommandPing:    "PING",
-	CommandEcho:    "ECHO",
-	CommandSet:     "SET",
-	CommandGet:     "GET",
-	CommandConfig:  "CONFIG",
-	CommandKeys:    "KEYS",
-	CommandInfo:    "INFO",
+	CommandUnknown:           "UNKNOWN",
+	CommandPing:              "PING",
+	CommandEcho:              "ECHO",
+	CommandSet:               "SET",
+	CommandGet:               "GET",
+	CommandConfig:            "CONFIG",
+	CommandKeys:              "KEYS",
+	CommandInfo:              "INFO",
+	CommandReplicationConfig: "REPLCONF",
 }
 
 func (ct CommandType) String() string {
@@ -40,13 +43,14 @@ func (ct CommandType) String() string {
 type CommandConstructor func([]string) (interfaces.Command, error)
 
 var CommandConstructorMap = map[string]CommandConstructor{
-	commandName[CommandPing]:   NewPing,
-	commandName[CommandEcho]:   NewEcho,
-	commandName[CommandSet]:    NewSet,
-	commandName[CommandGet]:    NewGet,
-	commandName[CommandConfig]: NewConfig,
-	commandName[CommandKeys]:   NewKeysCommand,
-	commandName[CommandInfo]:   infocommand.NewInfoCommand,
+	commandName[CommandPing]:              NewPing,
+	commandName[CommandEcho]:              NewEcho,
+	commandName[CommandSet]:               NewSet,
+	commandName[CommandGet]:               NewGet,
+	commandName[CommandConfig]:            NewConfig,
+	commandName[CommandKeys]:              NewKeysCommand,
+	commandName[CommandInfo]:              infocommand.NewInfoCommand,
+	commandName[CommandReplicationConfig]: replicationconfig.NewReplicationConfigCommand,
 }
 
 // ------------------Command-------------------

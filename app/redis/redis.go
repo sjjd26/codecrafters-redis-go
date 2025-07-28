@@ -33,6 +33,7 @@ func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (*Red
 	if err != nil {
 		return nil, fmt.Errorf("failed to create replication details: %w", err)
 	}
+	config.SetReplicationDetails(replicationDetails)
 
 	instance := &RedisInstance{
 		Config:             config,
@@ -43,7 +44,10 @@ func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (*Red
 	}
 
 	if masterDetails != nil {
-		instance.Handshake()
+		err := instance.Handshake()
+		if err != nil {
+			return nil, fmt.Errorf("handshake failed: %w", err)
+		}
 	}
 
 	return instance, nil
@@ -106,7 +110,7 @@ func (inst *RedisInstance) handleInput(input []byte) ([]byte, error) {
 
 	resp, err := command.Handle()
 	if err != nil {
-		return nil, fmt.Errorf("command %v failed: %w", command, err)
+		return nil, fmt.Errorf("command %s failed: %w", command, err)
 	}
 
 	return []byte(resp), nil
@@ -173,6 +177,8 @@ func (inst *RedisInstance) RestoreFromRdb() error {
 }
 
 func (inst *RedisInstance) Handshake() error {
+	fmt.Println("Initiating handshake with master node...")
+
 	if inst.replicationDetails.Role == redisConfig.RoleMaster {
 		return fmt.Errorf("master node does not send handshake")
 	}
@@ -193,16 +199,19 @@ func (inst *RedisInstance) Handshake() error {
 	defer conn.Close()
 
 	// Step 1: Send PING
+	// fmt.Println("Sending PING...")
 	if err := inst.sendPing(conn); err != nil {
 		return fmt.Errorf("failed to send PING to master: %w", err)
 	}
 
 	// Step 2: Send REPLCONF listening-port <port>
+	// fmt.Println("Sending 1st REPLCONF...")
 	if err := inst.sendReplConfListeningPort(conn); err != nil {
 		return fmt.Errorf("failed to send REPLCONF to master: %w", err)
 	}
 
 	// Step 3: Send REPLCONF capa pysync2
+	// fmt.Println("Sending 2nd REPLCONF...")
 	if err := inst.sendReplConfCapaPysync2(conn); err != nil {
 		return fmt.Errorf("failed to send REPLCONF capa pysync2 to master: %w", err)
 	}
@@ -211,16 +220,18 @@ func (inst *RedisInstance) Handshake() error {
 }
 
 func (_ *RedisInstance) sendPing(conn net.Conn) error {
-	if _, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n")); err != nil {
+	var err error
+	if _, err = conn.Write([]byte("*1\r\n$4\r\nPING\r\n")); err != nil {
 		return err
 	}
 	// Read the response from the master
 	response := make([]byte, 1024)
-	if _, err := conn.Read(response); err != nil {
+	var n int = 0
+	if n, err = conn.Read(response); err != nil {
 		return fmt.Errorf("failed to read PING response: %w", err)
 	}
-	if string(response) != "+PONG\r\n" {
-		return fmt.Errorf("unexpected PING response: %s", string(response))
+	if string(response[:n]) != "+PONG\r\n" {
+		return fmt.Errorf("unexpected PING response: %q", response[:n])
 	}
 	return nil
 }
@@ -229,17 +240,21 @@ func (inst *RedisInstance) sendReplConfListeningPort(conn net.Conn) error {
 	port := strconv.Itoa(inst.replicationDetails.SelfDetails.Port)
 	commandParts := []string{"REPLCONF", "listening-port", port}
 	command := types.CreateBulkStringArray(commandParts)
-	if _, err := conn.Write([]byte(command)); err != nil {
+
+	// fmt.Printf("writing %s \n", command)
+	var err error
+	if _, err = conn.Write([]byte(command)); err != nil {
 		return err
 	}
 
 	// Read the response from the master
 	response := make([]byte, 1024)
-	if _, err := conn.Read(response); err != nil {
+	var n int = 0
+	if n, err = conn.Read(response); err != nil {
 		return fmt.Errorf("failed to read REPLCONF response: %w", err)
 	}
-	if string(response) != "+OK\r\n" {
-		return fmt.Errorf("unexpected REPLCONF response: %s", string(response))
+	if string(response[:n]) != "+OK\r\n" {
+		return fmt.Errorf("unexpected REPLCONF response: %q", response[:n])
 	}
 
 	return nil
@@ -248,17 +263,19 @@ func (inst *RedisInstance) sendReplConfListeningPort(conn net.Conn) error {
 func (inst *RedisInstance) sendReplConfCapaPysync2(conn net.Conn) error {
 	commandParts := []string{"REPLCONF", "capa", "pysync2"}
 	command := types.CreateBulkStringArray(commandParts)
-	if _, err := conn.Write([]byte(command)); err != nil {
+	var err error
+	if _, err = conn.Write([]byte(command)); err != nil {
 		return err
 	}
 
 	// Read the response from the master
 	response := make([]byte, 1024)
-	if _, err := conn.Read(response); err != nil {
+	var n int = 0
+	if n, err = conn.Read(response); err != nil {
 		return fmt.Errorf("failed to read REPLCONF capa response: %w", err)
 	}
-	if string(response) != "+OK\r\n" {
-		return fmt.Errorf("unexpected REPLCONF capa response: %s", string(response))
+	if string(response[:n]) != "+OK\r\n" {
+		return fmt.Errorf("unexpected REPLCONF capa response: %s", string(response[:n]))
 	}
 
 	return nil
