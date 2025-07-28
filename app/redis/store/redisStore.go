@@ -39,13 +39,13 @@ func NewRedisStore() RedisStore {
 
 // Add adds a key-value pair to the store.
 // Returns true if the key already existed, false otherwise.
-func (rs RedisStoreImpl) Add(key string, value string) bool {
+func (rs *RedisStoreImpl) Add(key string, value string) bool {
 	_, exists := rs.valueStore[key]
 	rs.valueStore[key] = value
 	return exists
 }
 
-func (rs RedisStoreImpl) AddExpiry(key string, expiry int64) error {
+func (rs *RedisStoreImpl) AddExpiry(key string, expiry int64) error {
 	if _, exists := rs.valueStore[key]; !exists {
 		return fmt.Errorf("key %s does not exist", key)
 	}
@@ -57,7 +57,7 @@ func (rs RedisStoreImpl) AddExpiry(key string, expiry int64) error {
 	return nil
 }
 
-func (rs RedisStoreImpl) Get(key string) (string, bool) {
+func (rs *RedisStoreImpl) Get(key string) (string, bool) {
 	value, ok := rs.valueStore[key]
 	if !ok {
 		return "", false
@@ -78,7 +78,7 @@ func (rs RedisStoreImpl) Get(key string) (string, bool) {
 	return value, true
 }
 
-func (rs RedisStoreImpl) GetKeysByPattern(pattern string) ([]string, error) {
+func (rs *RedisStoreImpl) GetKeysByPattern(pattern string) ([]string, error) {
 	var keys []string
 	glob := glob.MustCompile(pattern)
 	for key := range rs.valueStore {
@@ -89,7 +89,7 @@ func (rs RedisStoreImpl) GetKeysByPattern(pattern string) ([]string, error) {
 	return keys, nil
 }
 
-func (rs RedisStoreImpl) RdbRestore() error {
+func (rs *RedisStoreImpl) RdbRestore() error {
 	file, err := rs.openRdbFile()
 	if err != nil {
 		return err
@@ -111,7 +111,7 @@ func (rs RedisStoreImpl) RdbRestore() error {
 	return nil
 }
 
-func (rs RedisStoreImpl) openRdbFile() (*os.File, error) {
+func (rs *RedisStoreImpl) openRdbFile() (*os.File, error) {
 	dir, ok := rs.config.Get(redisConfig.ConfigDir)
 	if !ok {
 		return nil, fmt.Errorf("no config value set for key %s", redisConfig.ConfigDir)
