@@ -15,6 +15,7 @@ type RedisStore interface {
 	AddExpiry(key string, expiry int64) error
 	Get(key string) (string, bool)
 	GetKeysByPattern(pattern string) ([]string, error)
+	Size() int
 }
 
 type RedisStoreImpl struct {
@@ -84,4 +85,8 @@ func (rs *RedisStoreImpl) GetKeysByPattern(pattern string) ([]string, error) {
 		}
 	}
 	return keys, nil
+}
+
+func (rs *RedisStoreImpl) Size() int {
+	return len(rs.valueStore)
 }

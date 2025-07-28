@@ -6,7 +6,9 @@ import (
 
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/rdbRestorer"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 )
 
 type PsyncCommand struct {
@@ -41,6 +43,26 @@ func (cmd *PsyncCommand) Handle() (string, error) {
 	config := redisConfig.NewRedisConfig()
 	replDetails := config.GetReplicationDetails()
 
-	response := fmt.Sprintf("+FULLRESYNC %s %s\r\n", replDetails.MasterReplId, strconv.Itoa(replDetails.MasterReplOffset))
+	fullResync := fmt.Sprintf("+FULLRESYNC %s %s\r\n", replDetails.MasterReplId, strconv.Itoa(replDetails.MasterReplOffset))
+	rdbData, err := cmd.getRdbFileData()
+	if err != nil {
+		return "", fmt.Errorf("failed to get RDB file data: %w", err)
+	}
+
+	response := fullResync + rdbData
 	return response, nil
+}
+
+func (cmd *PsyncCommand) getRdbFileData() (string, error) {
+	redisStore := store.NewRedisStore()
+	restorer := rdbRestorer.NewRdbRestorer(redisStore)
+	rdbData, err := restorer.SaveStoreToRdb()
+	if err != nil {
+		return "", fmt.Errorf("failed to restore to RDB: %w", err)
+	}
+
+	rdbDataLen := len(rdbData)
+	rdbDataString := fmt.Sprintf("$%d\r\n%s", rdbDataLen, rdbData)
+
+	return rdbDataString, nil
 }

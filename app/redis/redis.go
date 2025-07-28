@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/parser"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/rdbRestorer"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
@@ -167,7 +168,7 @@ func (inst *RedisInstance) RestoreFromRdb() error {
 	}
 
 	filepath := fmt.Sprintf("%s/%s", dir, dbfilename)
-	restorer := NewRdbRestorer(inst.Store)
+	restorer := rdbRestorer.NewRdbRestorer(inst.Store)
 	err := restorer.RestoreFromRdb(filepath)
 	if err != nil {
 		return fmt.Errorf("restoration from rdb failed: %w", err)
@@ -213,6 +214,7 @@ func (inst *RedisInstance) Handshake() error {
 		return err
 	}
 
+	// fmt.Println("Sending PSYNC...")
 	if err := inst.sendPsync(conn); err != nil {
 		return err
 	}
