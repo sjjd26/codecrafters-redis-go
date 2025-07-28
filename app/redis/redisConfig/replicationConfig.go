@@ -27,8 +27,9 @@ type ReplicationDetails struct {
 
 func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*ReplicationDetails, error) {
 	var err error
-	var id string
-	var role RedisInfoRole
+	var id string = "?"
+	masterReplOffset := -1
+	role := RoleSlave
 
 	if selfDetails == nil {
 		return nil, fmt.Errorf("self details cannot be nil")
@@ -36,18 +37,17 @@ func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*Replicatio
 
 	if masterDetails == nil {
 		role = RoleMaster
+		masterReplOffset = 0
 		id, err = generateRandomId(40)
 		if err != nil {
 			return nil, fmt.Errorf("failed to generate random ID for replication details: %w", err)
 		}
-	} else {
-		role = RoleSlave
 	}
 
 	replicationDetails := &ReplicationDetails{
 		Role:             role,
 		MasterReplId:     id,
-		MasterReplOffset: 0,
+		MasterReplOffset: masterReplOffset,
 		SelfDetails:      selfDetails,
 		MasterDetails:    masterDetails,
 	}
