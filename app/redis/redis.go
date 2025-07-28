@@ -1,13 +1,17 @@
 package redis
 
 import (
+	"context"
 	"fmt"
 	"net"
 	"os"
+	"strconv"
+	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/parser"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
 type RedisInstance struct {
@@ -169,5 +173,93 @@ func (inst *RedisInstance) RestoreFromRdb() error {
 }
 
 func (inst *RedisInstance) Handshake() error {
+	if inst.replicationDetails.Role == redisConfig.RoleMaster {
+		return fmt.Errorf("master node does not send handshake")
+	}
+	masterDetails := inst.replicationDetails.MasterDetails
+	if masterDetails == nil {
+		return fmt.Errorf("master details not set for slave node")
+	}
+
+	address := fmt.Sprintf("%s:%d", masterDetails.Host, masterDetails.Port)
+	var d net.Dialer
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+	defer cancel()
+
+	conn, err := d.DialContext(ctx, "tcp", address)
+	if err != nil {
+		return fmt.Errorf("failed to connect to master %s: %w", address, err)
+	}
+	defer conn.Close()
+
+	// Step 1: Send PING
+	if err := inst.sendPing(conn); err != nil {
+		return fmt.Errorf("failed to send PING to master: %w", err)
+	}
+
+	// Step 2: Send REPLCONF listening-port <port>
+	if err := inst.sendReplConfListeningPort(conn); err != nil {
+		return fmt.Errorf("failed to send REPLCONF to master: %w", err)
+	}
+
+	// Step 3: Send REPLCONF capa pysync2
+	if err := inst.sendReplConfCapaPysync2(conn); err != nil {
+		return fmt.Errorf("failed to send REPLCONF capa pysync2 to master: %w", err)
+	}
+
+	return nil
+}
+
+func (_ *RedisInstance) sendPing(conn net.Conn) error {
+	if _, err := conn.Write([]byte("*1\r\n$4\r\nPING\r\n")); err != nil {
+		return err
+	}
+	// Read the response from the master
+	response := make([]byte, 1024)
+	if _, err := conn.Read(response); err != nil {
+		return fmt.Errorf("failed to read PING response: %w", err)
+	}
+	if string(response) != "+PONG\r\n" {
+		return fmt.Errorf("unexpected PING response: %s", string(response))
+	}
+	return nil
+}
+
+func (inst *RedisInstance) sendReplConfListeningPort(conn net.Conn) error {
+	port := strconv.Itoa(inst.replicationDetails.SelfDetails.Port)
+	commandParts := []string{"REPLCONF", "listening-port", port}
+	command := types.CreateBulkStringArray(commandParts)
+	if _, err := conn.Write([]byte(command)); err != nil {
+		return err
+	}
+
+	// Read the response from the master
+	response := make([]byte, 1024)
+	if _, err := conn.Read(response); err != nil {
+		return fmt.Errorf("failed to read REPLCONF response: %w", err)
+	}
+	if string(response) != "+OK\r\n" {
+		return fmt.Errorf("unexpected REPLCONF response: %s", string(response))
+	}
+
+	return nil
+}
+
+func (inst *RedisInstance) sendReplConfCapaPysync2(conn net.Conn) error {
+	commandParts := []string{"REPLCONF", "capa", "pysync2"}
+	command := types.CreateBulkStringArray(commandParts)
+	if _, err := conn.Write([]byte(command)); err != nil {
+		return err
+	}
+
+	// Read the response from the master
+	response := make([]byte, 1024)
+	if _, err := conn.Read(response); err != nil {
+		return fmt.Errorf("failed to read REPLCONF capa response: %w", err)
+	}
+	if string(response) != "+OK\r\n" {
+		return fmt.Errorf("unexpected REPLCONF capa response: %s", string(response))
+	}
+
 	return nil
 }
