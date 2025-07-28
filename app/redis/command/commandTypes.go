@@ -21,6 +21,7 @@ const (
 	CommandKeys
 	CommandInfo
 	CommandReplicationConfig
+	CommandPsync
 )
 
 var commandName = map[CommandType]string{
@@ -33,6 +34,7 @@ var commandName = map[CommandType]string{
 	CommandKeys:              "KEYS",
 	CommandInfo:              "INFO",
 	CommandReplicationConfig: "REPLCONF",
+	CommandPsync:             "PSYNC",
 }
 
 func (ct CommandType) String() string {
@@ -51,6 +53,7 @@ var CommandConstructorMap = map[string]CommandConstructor{
 	commandName[CommandKeys]:              NewKeysCommand,
 	commandName[CommandInfo]:              infocommand.NewInfoCommand,
 	commandName[CommandReplicationConfig]: replicationconfig.NewReplicationConfigCommand,
+	commandName[CommandPsync]:             NewPsyncCommand,
 }
 
 // ------------------Command-------------------
