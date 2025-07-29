@@ -54,3 +54,7 @@ func (cmd Set) Handle() (string, error) {
 	}
 	return types.OkString, nil
 }
+
+func (cmd Set) IsWriteCommand() bool {
+	return true
+}

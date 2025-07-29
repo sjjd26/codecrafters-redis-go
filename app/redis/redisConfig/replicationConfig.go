@@ -3,6 +3,7 @@ package redisConfig
 import (
 	"crypto/rand"
 	"fmt"
+	"net"
 )
 
 type HostDetails struct {
@@ -23,6 +24,7 @@ type ReplicationDetails struct {
 	MasterDetails    *HostDetails
 	MasterReplId     string
 	MasterReplOffset int
+	SlaveConnections []net.Conn
 }
 
 func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*ReplicationDetails, error) {
@@ -50,6 +52,7 @@ func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*Replicatio
 		MasterReplOffset: masterReplOffset,
 		SelfDetails:      selfDetails,
 		MasterDetails:    masterDetails,
+		SlaveConnections: []net.Conn{},
 	}
 
 	return replicationDetails, nil
@@ -67,4 +70,8 @@ func generateRandomId(length int) (string, error) {
 		b[i] = charset[int(b[i])%charsetLen]
 	}
 	return string(b), nil
+}
+
+func (replicationDetails *ReplicationDetails) AddSlaveConn(conn net.Conn) {
+	replicationDetails.SlaveConnections = append(replicationDetails.SlaveConnections, conn)
 }

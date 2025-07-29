@@ -66,3 +66,11 @@ func (cmd *PsyncCommand) getRdbFileData() (string, error) {
 
 	return rdbDataString, nil
 }
+
+func (cmd *PsyncCommand) IsHandshakeCommand() bool {
+	return true
+}
+
+func (cmd *PsyncCommand) GetHandshakeStep() interfaces.HandshakeStep {
+	return interfaces.HandshakeStepPsync
+}

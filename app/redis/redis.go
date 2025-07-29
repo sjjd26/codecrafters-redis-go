@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/parser"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/rdbRestorer"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
@@ -20,15 +21,22 @@ type RedisInstance struct {
 	Store  store.RedisStore
 	Parser parser.RedisParser
 
-	inputChannelQueue  chan chan []byte
+	inputQueue         chan *ConnectionInput
 	replicationDetails *redisConfig.ReplicationDetails
+}
+
+type ConnectionInput struct {
+	Conn         net.Conn
+	Input        []byte
+	HshakeStep   interfaces.HandshakeStep
+	ResponseChan chan []byte
 }
 
 func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (*RedisInstance, error) {
 	config := redisConfig.NewRedisConfig()
 	store := store.NewRedisStore()
 	parser := &parser.RedisParserImpl{}
-	channelQueue := make(chan chan []byte, 10)
+	inputQueue := make(chan *ConnectionInput, 10)
 
 	replicationDetails, err := redisConfig.NewReplicationDetails(selfDetails, masterDetails)
 	if err != nil {
@@ -40,7 +48,7 @@ func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (*Red
 		Config:             config,
 		Store:              store,
 		Parser:             parser,
-		inputChannelQueue:  channelQueue,
+		inputQueue:         inputQueue,
 		replicationDetails: replicationDetails,
 	}
 
@@ -62,15 +70,15 @@ func (inst *RedisInstance) ListenAndRun() {
 func (inst *RedisInstance) RunMainEventLoop() {
 	for {
 		// fmt.Println("event loop waiting for input")
-		inputChan := <-inst.inputChannelQueue
+		inputConn := <-inst.inputQueue
 		// fmt.Println("got new input channel")
-		input := <-inputChan
+		// inputConn := <-inputChan
 		// fmt.Println("got input from channel")
-		response, err := inst.handleInput(input)
+		response, err := inst.handleInput(inputConn)
 		if err != nil {
 			panic(fmt.Errorf("Error handling input: %w", err))
 		}
-		inputChan <- response
+		inputConn.ResponseChan <- response
 	}
 }
 
@@ -101,17 +109,30 @@ func (inst *RedisInstance) Listen() {
 	}
 }
 
-func (inst *RedisInstance) handleInput(input []byte) ([]byte, error) {
+func (inst *RedisInstance) handleInput(connInput *ConnectionInput) ([]byte, error) {
 	// fmt.Println("handling new input...")
 
-	command, err := inst.Parser.ParseInput(input)
+	command, err := inst.Parser.ParseInput(connInput.Input)
 	if err != nil {
-		return nil, fmt.Errorf("could not parse input: %q, %w", string(input), err)
+		return nil, fmt.Errorf("could not parse input: %q, %w", string(connInput.Input), err)
 	}
 
 	resp, err := command.Handle()
 	if err != nil {
 		return nil, fmt.Errorf("command %s failed: %w", command, err)
+	}
+
+	isMaster := inst.replicationDetails.Role == redisConfig.RoleMaster
+	if wc, ok := command.(interfaces.WriteCommand); isMaster && ok && wc.IsWriteCommand() {
+		err := inst.PropagateInput(connInput.Input)
+		if err != nil {
+			// Should return error here? Need better handling
+			fmt.Printf("Error propagating input: %q, %s\n", string(connInput.Input), err.Error())
+		}
+	}
+
+	if hc, ok := command.(interfaces.HandshakeCommand); isMaster && ok && hc.IsHandshakeCommand() {
+		inst.handleHandshakeStep(connInput, hc.GetHandshakeStep())
 	}
 
 	return []byte(resp), nil
@@ -126,7 +147,14 @@ func (inst *RedisInstance) handleConnection(conn net.Conn) error {
 
 	bufSize := 1024
 	readBuf := make([]byte, bufSize)
-	inputChan := make(chan []byte)
+	// inputChan := make(chan []byte)
+
+	connInput := &ConnectionInput{
+		Conn:         conn,
+		Input:        []byte{},
+		HshakeStep:   interfaces.HandshakeStepNone,
+		ResponseChan: make(chan []byte),
+	}
 
 	for {
 		n, err := conn.Read(readBuf)
@@ -144,9 +172,11 @@ func (inst *RedisInstance) handleConnection(conn net.Conn) error {
 		}
 
 		// fmt.Printf("read %v bytes \n", n)
-		inst.inputChannelQueue <- inputChan
-		inputChan <- readBuf[:n]
-		resp := <-inputChan
+		connInput.Input = readBuf[:n]
+		inst.inputQueue <- connInput
+		// inputChan <- readBuf[:n]
+
+		resp := <-connInput.ResponseChan
 
 		fmt.Printf("writing: %q \n", resp)
 		_, writeErr := conn.Write([]byte(resp))
@@ -281,6 +311,37 @@ func (inst *RedisInstance) sendHandshakeCommand(conn net.Conn, command, expected
 	}
 	if expectedResp != "" && string(response[:n]) != expectedResp {
 		return fmt.Errorf("unexpected response: %q", response[:n])
+	}
+
+	return nil
+}
+
+func (inst *RedisInstance) handleHandshakeStep(connInput *ConnectionInput, newStep interfaces.HandshakeStep) {
+	if connInput.HshakeStep == interfaces.HandshakeStepPsync {
+		return // already finished the handshake so nothing to do
+	}
+
+	isNextStep := newStep-connInput.HshakeStep == 1
+	if isNextStep {
+		connInput.HshakeStep = newStep
+		if newStep == interfaces.HandshakeStepPsync {
+			inst.replicationDetails.AddSlaveConn(connInput.Conn)
+		}
+	} else {
+		connInput.HshakeStep = interfaces.HandshakeStepNone
+	}
+}
+
+func (inst *RedisInstance) PropagateInput(input []byte) error {
+	// fmt.Printf("Propagating input: %q \n", input)
+	if inst.replicationDetails.Role != redisConfig.RoleMaster {
+		return fmt.Errorf("only master nodes can propagate inputs")
+	}
+
+	for _, slaveConn := range inst.replicationDetails.SlaveConnections {
+		if _, err := slaveConn.Write(input); err != nil {
+			return fmt.Errorf("failed to write input to slave connection: %w", err)
+		}
 	}
 
 	return nil

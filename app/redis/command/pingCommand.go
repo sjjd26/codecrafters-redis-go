@@ -6,7 +6,7 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
-type Ping struct {
+type PingCommand struct {
 	message string
 }
 
@@ -16,18 +16,26 @@ func NewPing(args []string) (interfaces.Command, error) {
 	}
 
 	if len(args) > 0 {
-		return Ping{message: args[0]}, nil
+		return &PingCommand{message: args[0]}, nil
 	}
-	return Ping{}, nil
+	return &PingCommand{}, nil
 }
 
-func (_ Ping) GetType() CommandType {
+func (_ *PingCommand) GetType() CommandType {
 	return CommandPing
 }
 
-func (pingCmd Ping) Handle() (string, error) {
-	if pingCmd.message != "" {
-		return types.CreateBulkString(pingCmd.message), nil
+func (cmd *PingCommand) Handle() (string, error) {
+	if cmd.message != "" {
+		return types.CreateBulkString(cmd.message), nil
 	}
 	return "+PONG\r\n", nil
+}
+
+func (cmd *PingCommand) IsHandshakeCommand() bool {
+	return true
+}
+
+func (cmd *PingCommand) GetHandshakeStep() interfaces.HandshakeStep {
+	return interfaces.HandshakeStepPing
 }

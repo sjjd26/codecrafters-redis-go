@@ -1,29 +1,36 @@
 package replicationconfig
 
 import (
-	"fmt"
-
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
 type ReplicationConfigCommand struct {
-	Key   string
-	Value string
+	Args []string
 }
 
 func NewReplicationConfigCommand(args []string) (interfaces.Command, error) {
-	if len(args) != 2 {
-		return nil, fmt.Errorf("invalid number of arguments for REPLCONF command")
-	}
-
-	return &ReplicationConfigCommand{
-		Key:   args[0],
-		Value: args[1],
-	}, nil
+	return &ReplicationConfigCommand{Args: args}, nil
 }
 
 func (cmd *ReplicationConfigCommand) Handle() (string, error) {
 	// For now just return OK
 	return types.OkString, nil
+}
+
+func (cmd *ReplicationConfigCommand) IsHandshakeCommand() bool {
+	return true
+}
+
+func (cmd *ReplicationConfigCommand) GetHandshakeStep() interfaces.HandshakeStep {
+	if len(cmd.Args) == 0 {
+		return interfaces.HandshakeStepNone
+	}
+	if cmd.Args[0] == "listening-port" {
+		return interfaces.HandshakeStepReplConfFirst
+	} else if cmd.Args[0] == "capa" {
+		return interfaces.HandshakeStepReplConfSecond
+	} else {
+		return interfaces.HandshakeStepNone
+	}
 }
