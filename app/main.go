@@ -65,36 +65,3 @@ func CreateHostDetails(selfPort int, replicaOf string) (*redisConfig.HostDetails
 
 	return selfDetails, masterDetails
 }
-
-// func initConfig(dir, dbfilename, replicaOf *string, port int) {
-// 	config := redisConfig.NewRedisConfig()
-// 	config.Set(redisConfig.ConfigDir, *dir)
-// 	config.Set(redisConfig.ConfigDbFilename, *dbfilename)
-
-// 	replicationDetails, err := redisConfig.NewReplicationDetails(redisConfig.RoleMaster, port)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	if *replicaOf != "" {
-// 		masterHost := strings.Split(*replicaOf, " ")
-// 		if len(masterHost) != 2 {
-// 			fmt.Println("Invalid replicaOf format. Use '<host> <port>'")
-// 			os.Exit(1)
-// 		}
-// 		masterPort, err := strconv.Atoi(masterHost[1])
-// 		if err != nil {
-// 			fmt.Println("Invalid port number:", masterHost[1])
-// 			os.Exit(1)
-// 		}
-// 		replicationDetails.MasterDetails = &redisConfig.HostDetails{
-// 			Host: masterHost[0],
-// 			Port: masterPort,
-// 		}
-// 		replicationDetails.Role = redisConfig.RoleSlave
-
-// 		if _, err := replicationDetails.SendHandshake(); err != nil {
-// 			panic(err)
-// 		}
-// 	}
-// 	config.SetReplicationDetails(replicationDetails)
-// }

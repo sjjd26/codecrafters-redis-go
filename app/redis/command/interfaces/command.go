@@ -23,3 +23,7 @@ type HandshakeCommand interface {
 	IsHandshakeCommand() bool
 	GetHandshakeStep() HandshakeStep
 }
+
+type MasterResponseCommand interface {
+	IsMasterResponseCommand() bool
+}
