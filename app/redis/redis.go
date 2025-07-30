@@ -173,21 +173,22 @@ func (inst *RedisInstance) handleConnection(conn net.Conn) error {
 func (inst *RedisInstance) handleInput(connInput *ConnectionInput) ([]byte, error) {
 	fmt.Printf("handling new input: %q\n", connInput.Input)
 
-	commands, err := inst.Parser.ParseInput(connInput.Input)
-	if err != nil {
-		return nil, fmt.Errorf("could not parse input: %q, %w", string(connInput.Input), err)
-	}
-
 	isMasterConn := connInput.Conn == inst.replicationDetails.MasterConn
-
 	var resp string
-	for _, command := range commands {
+	currentInput := connInput.Input
+
+	for currentInput != nil && len(currentInput) > 0 {
+		command, inputLen, err := inst.Parser.ParseInput(currentInput)
+		if err != nil {
+			return nil, fmt.Errorf("could not parse input: %q, %w", currentInput, err)
+		}
+
 		commandResp, err := command.Handle()
 		if err != nil {
 			return nil, fmt.Errorf("command %s failed: %w", command, err)
 		}
 
-		inst.replicationDetails.ReplicaOffset += len(connInput.Input)
+		inst.replicationDetails.ReplicaOffset += inputLen
 		fmt.Printf("replica offset updated to %d\n", inst.replicationDetails.ReplicaOffset)
 
 		// Refactor with slave/master post command processing
@@ -195,21 +196,22 @@ func (inst *RedisInstance) handleInput(connInput *ConnectionInput) ([]byte, erro
 			if mc, ok := command.(interfaces.MasterResponseCommand); ok && mc.IsMasterResponseCommand() {
 				resp += commandResp
 			}
-			continue
-		}
+		} else {
+			resp += commandResp
+			if wc, ok := command.(interfaces.WriteCommand); ok && wc.IsWriteCommand() {
+				err := inst.PropagateInput(currentInput)
+				if err != nil {
+					// Should return error here? Need better handling
+					return nil, fmt.Errorf("Error propagating input: %q, %s\n", currentInput, err.Error())
+				}
+			}
 
-		resp += commandResp
-		if wc, ok := command.(interfaces.WriteCommand); ok && wc.IsWriteCommand() {
-			err := inst.PropagateInput(connInput.Input)
-			if err != nil {
-				// Should return error here? Need better handling
-				return nil, fmt.Errorf("Error propagating input: %q, %s\n", string(connInput.Input), err.Error())
+			if hc, ok := command.(interfaces.HandshakeCommand); ok && hc.IsHandshakeCommand() {
+				inst.handleHandshakeStep(connInput, hc.GetHandshakeStep())
 			}
 		}
 
-		if hc, ok := command.(interfaces.HandshakeCommand); ok && hc.IsHandshakeCommand() {
-			inst.handleHandshakeStep(connInput, hc.GetHandshakeStep())
-		}
+		currentInput = currentInput[inputLen:]
 	}
 
 	return []byte(resp), nil
