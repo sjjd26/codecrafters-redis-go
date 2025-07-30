@@ -1,10 +1,12 @@
 package replicationconfig
 
 import (
+	"strconv"
 	"strings"
 
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
@@ -55,7 +57,10 @@ func (cmd *ReplicationConfigCommand) GetHandshakeStep() interfaces.HandshakeStep
 // --------------------- GetAck ----------------------
 
 func (cmd *ReplicationConfigGetAckCommand) Handle() (string, error) {
-	respParts := []string{"REPLCONF", "ACK", "0"}
+	config := redisConfig.NewRedisConfig()
+	replicationDetails := config.GetReplicationDetails()
+	offset := replicationDetails.ReplicaOffset
+	respParts := []string{"REPLCONF", "ACK", strconv.Itoa(offset)}
 	return types.CreateBulkStringArray(respParts), nil
 }
 

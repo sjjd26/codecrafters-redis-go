@@ -187,6 +187,9 @@ func (inst *RedisInstance) handleInput(connInput *ConnectionInput) ([]byte, erro
 			return nil, fmt.Errorf("command %s failed: %w", command, err)
 		}
 
+		inst.replicationDetails.ReplicaOffset += len(connInput.Input)
+		fmt.Printf("replica offset updated to %d\n", inst.replicationDetails.ReplicaOffset)
+
 		// Refactor with slave/master post command processing
 		if isMasterConn {
 			if mc, ok := command.(interfaces.MasterResponseCommand); ok && mc.IsMasterResponseCommand() {
