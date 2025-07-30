@@ -28,3 +28,11 @@ func CreateBulkStringArray(values []string) string {
 	}
 	return result
 }
+
+func CreateInt(value int) string {
+	return fmt.Sprintf(":%d\r\n", value)
+}
+
+func CreateSimpleString(value string) string {
+	return fmt.Sprintf("+%s\r\n", value)
+}
