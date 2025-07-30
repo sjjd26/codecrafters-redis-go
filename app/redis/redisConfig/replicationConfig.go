@@ -18,6 +18,7 @@ const (
 	RoleSlave  RedisInfoRole = "slave"
 )
 
+// Different structs for master/slave?
 type ReplicationDetails struct {
 	Role             RedisInfoRole
 	SelfDetails      *HostDetails
@@ -25,8 +26,14 @@ type ReplicationDetails struct {
 	MasterReplId     string
 	MasterReplOffset int
 	SlaveConnections []net.Conn
+	SlaveDetails     map[net.Conn]*SlaveDetails
 	MasterConn       net.Conn
 	ReplicaOffset    int // Offset for the replica
+}
+
+type SlaveDetails struct {
+	Conn           net.Conn
+	ExpectedOffset int
 }
 
 func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*ReplicationDetails, error) {
@@ -55,6 +62,7 @@ func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*Replicatio
 		SelfDetails:      selfDetails,
 		MasterDetails:    masterDetails,
 		SlaveConnections: []net.Conn{},
+		SlaveDetails:     make(map[net.Conn]*SlaveDetails),
 		MasterConn:       nil,
 		ReplicaOffset:    0,
 	}

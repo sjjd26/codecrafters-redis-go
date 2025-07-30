@@ -3,15 +3,18 @@ package command
 import (
 	"fmt"
 	"strconv"
+	"time"
 
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
 type WaitCommand struct {
 	ReplicaCount int
 	Timeout      int
+	Start        int64
 }
 
 func NewWaitCommand(args []string) (interfaces.Command, error) {
@@ -31,14 +34,31 @@ func NewWaitCommand(args []string) (interfaces.Command, error) {
 	if err != nil || timeout < 0 {
 		return nil, fmt.Errorf("invalid timeout value: %w", err)
 	}
+	start := time.Now().UnixMilli()
 
 	return &WaitCommand{
 		ReplicaCount: replicaCount,
 		Timeout:      timeout,
+		Start:        start,
 	}, nil
 }
 
 func (cmd *WaitCommand) Handle() (string, error) {
-	// For now, just return 0
-	return types.CreateInt(0), nil
+	config := redisConfig.NewRedisConfig()
+	replicationDetails := config.GetReplicationDetails()
+	if replicationDetails.Role != redisConfig.RoleMaster {
+		return "", fmt.Errorf("WAIT command can only be executed on master nodes")
+	}
+
+	replCount := len(replicationDetails.SlaveConnections)
+	if cmd.ReplicaCount == 0 {
+		return types.CreateInt(replCount), nil
+	}
+
+	timeDiff := time.Now().UnixMilli() - cmd.Start
+	if cmd.Timeout > 0 && timeDiff < int64(cmd.Timeout) {
+		time.Sleep(time.Duration(timeDiff) * time.Millisecond)
+	}
+
+	return types.CreateInt(replCount), nil
 }

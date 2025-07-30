@@ -171,7 +171,7 @@ func (inst *RedisInstance) handleConnection(conn net.Conn) error {
 }
 
 func (inst *RedisInstance) handleInput(connInput *ConnectionInput) ([]byte, error) {
-	fmt.Printf("handling new input: %q\n", connInput.Input)
+	// fmt.Printf("handling new input: %q\n", connInput.Input)
 
 	isMasterConn := connInput.Conn == inst.replicationDetails.MasterConn
 	var resp string
@@ -189,7 +189,7 @@ func (inst *RedisInstance) handleInput(connInput *ConnectionInput) ([]byte, erro
 		}
 
 		inst.replicationDetails.ReplicaOffset += inputLen
-		fmt.Printf("replica offset updated to %d\n", inst.replicationDetails.ReplicaOffset)
+		// fmt.Printf("replica offset updated to %d\n", inst.replicationDetails.ReplicaOffset)
 
 		// Refactor with slave/master post command processing
 		if isMasterConn {
@@ -238,7 +238,7 @@ func (inst *RedisInstance) RestoreFromRdb() error {
 }
 
 func (inst *RedisInstance) Handshake() (net.Conn, error) {
-	fmt.Println("Initiating handshake with master node...")
+	// fmt.Println("Initiating handshake with master node...")
 
 	if inst.replicationDetails.Role == redisConfig.RoleMaster {
 		return nil, fmt.Errorf("master node does not send handshake")
@@ -368,7 +368,7 @@ func (inst *RedisInstance) sendPsync(conn net.Conn) ([]byte, error) {
 			return nil, fmt.Errorf("RDB response length exceeds available data: %d > %d", p+rdbLen, len(rdbResp))
 		}
 		if p+rdbLen == len(rdbResp) {
-			fmt.Println("RDB response is complete, no additional input received")
+			// fmt.Println("RDB response is complete, no additional input received")
 			return nil, nil
 		}
 		return rdbResp[p+rdbLen:], nil
@@ -376,7 +376,7 @@ func (inst *RedisInstance) sendPsync(conn net.Conn) ([]byte, error) {
 
 	// RDB response may be included in this response or may be sent separately
 	if rdbResp != "" {
-		fmt.Printf("received RDB response from master with FULLRESYNC: %q\n", rdbResp)
+		// fmt.Printf("received RDB response from master with FULLRESYNC: %q\n", rdbResp)
 		// for now just ignore the rdb response
 		return getRemainingInput([]byte(rdbResp))
 	}
@@ -389,7 +389,7 @@ func (inst *RedisInstance) sendPsync(conn net.Conn) ([]byte, error) {
 		return nil, fmt.Errorf("no RDB response received from master after PSYNC command")
 	}
 
-	fmt.Printf("received RDB response from master after FULLRESYNC: %q\n", response[:n])
+	// fmt.Printf("received RDB response from master after FULLRESYNC: %q\n", response[:n])
 	// again just ignore rdb response
 	return getRemainingInput(response[:n])
 }
@@ -423,12 +423,15 @@ func (inst *RedisInstance) handleHandshakeStep(connInput *ConnectionInput, newSt
 		connInput.HshakeStep = newStep
 		if newStep == interfaces.HandshakeStepPsync {
 			inst.replicationDetails.AddSlaveConn(connInput.Conn)
+			fmt.Printf("Added slave connection: %s\n", connInput.Conn.RemoteAddr().String())
+			fmt.Printf("Slave connections: %d\n", len(inst.replicationDetails.SlaveConnections))
 		}
 	} else {
 		connInput.HshakeStep = interfaces.HandshakeStepNone
 	}
 }
 
+// SHOULD USE A REPLICATION STREAM -> SEND INPUT TO REPLICATION STREAM WHICH IS THEN SENT TO ALL SLAVES VIA BACKGROUND PROCESS?
 func (inst *RedisInstance) PropagateInput(input []byte) error {
 	// fmt.Printf("Propagating input: %q \n", input)
 	if inst.replicationDetails.Role != redisConfig.RoleMaster {
