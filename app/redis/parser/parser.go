@@ -14,7 +14,7 @@ var ErrAggregateLength = fmt.Errorf("failed to get length of aggregate type")
 var ErrTypeByteCheck = fmt.Errorf("failed type byte check")
 
 type RedisParser interface {
-	ParseInput(input []byte) (interfaces.Command, error)
+	ParseInput(input []byte) ([]interfaces.Command, error)
 }
 
 type RedisParserImpl struct{}
@@ -128,28 +128,34 @@ func (_ *RedisParserImpl) parseCommand(parts []string) (interfaces.Command, erro
 // Expects full input string -> array consisting only of bulk strings
 // E.g. *2\r\n $4\r\n LLEN\r\n $6\r\n mylist\r\n
 // See Redis docs on protocol spec: https://redis.io/docs/latest/develop/reference/protocol-spec/
-func (parser *RedisParserImpl) ParseInput(input []byte) (interfaces.Command, error) {
+func (parser *RedisParserImpl) ParseInput(input []byte) ([]interfaces.Command, error) {
 	if len(input) == 0 {
 		return nil, fmt.Errorf("input is empty")
 	}
 
-	commandParts, p, err := parser.parseArray(input)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse input array: %w", err)
+	commands := []interfaces.Command{}
+	p := 0
+
+	for p < len(input) {
+		commandParts, end, err := parser.parseArray(input[p:])
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse input array: %w", err)
+		}
+		p += end
+
+		// fmt.Printf("p: %v, input len: %v, p < input len: %v\n", p, len(input), p < len(input))
+
+		if len(commandParts) == 0 {
+			return nil, fmt.Errorf("input array is empty")
+		}
+
+		command, err := parser.parseCommand(commandParts)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse command %s: %w", commandParts[0], err)
+		}
+
+		commands = append(commands, command)
 	}
 
-	// fmt.Printf("p: %v, input len: %v", p, len(input))
-	if p > len(input)+1 {
-		return nil, fmt.Errorf("input has remaining data after parsing, extra %v bytes than expected %v", p-len(input), len(input))
-	}
-
-	if len(commandParts) == 0 {
-		return nil, fmt.Errorf("input array is empty")
-	}
-
-	command, err := parser.parseCommand(commandParts)
-	if err != nil {
-		return nil, fmt.Errorf("failed to parse command %s: %w", commandParts[0], err)
-	}
-	return command, nil
+	return commands, nil
 }

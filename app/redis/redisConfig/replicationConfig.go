@@ -25,6 +25,7 @@ type ReplicationDetails struct {
 	MasterReplId     string
 	MasterReplOffset int
 	SlaveConnections []net.Conn
+	MasterConn       net.Conn
 }
 
 func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*ReplicationDetails, error) {
@@ -53,6 +54,7 @@ func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*Replicatio
 		SelfDetails:      selfDetails,
 		MasterDetails:    masterDetails,
 		SlaveConnections: []net.Conn{},
+		MasterConn:       nil,
 	}
 
 	return replicationDetails, nil

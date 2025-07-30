@@ -6,6 +6,7 @@ import (
 	"net"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
@@ -26,11 +27,10 @@ type RedisInstance struct {
 }
 
 type ConnectionInput struct {
-	Conn           net.Conn
-	Input          []byte
-	HshakeStep     interfaces.HandshakeStep
-	ResponseChan   chan []byte
-	IsWriteCommand bool
+	Conn         net.Conn
+	Input        []byte
+	HshakeStep   interfaces.HandshakeStep
+	ResponseChan chan []byte
 }
 
 func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (*RedisInstance, error) {
@@ -64,7 +64,9 @@ func (inst *RedisInstance) ListenAndRun() {
 		if err != nil {
 			panic(err)
 		}
+		inst.replicationDetails.MasterConn = conn
 		go func() {
+			// fmt.Printf("Handling connection to master node: %s\n", conn.RemoteAddr().String())
 			err := inst.handleConnection(conn)
 			if err != nil {
 				panic(fmt.Errorf("Error handling connection: %w", err))
@@ -77,7 +79,7 @@ func (inst *RedisInstance) ListenAndRun() {
 
 func (inst *RedisInstance) RunMainEventLoop() {
 	for {
-		// fmt.Println("event loop waiting for input")
+		fmt.Println("event loop waiting for input")
 		inputConn := <-inst.inputQueue
 		response, err := inst.handleInput(inputConn)
 		if err != nil {
@@ -98,13 +100,14 @@ func (inst *RedisInstance) Listen() {
 	defer l.Close()
 
 	for {
-		// fmt.Println("listener waiting for connection")
+		fmt.Println("listener waiting for connection")
 		conn, err := l.Accept()
 		if err != nil {
 			fmt.Println("Error accepting connection: ", err.Error())
 			os.Exit(1)
 		}
 
+		fmt.Printf("New connection accepted from %s\n", conn.RemoteAddr().String())
 		go func() {
 			err := inst.handleConnection(conn)
 			if err != nil {
@@ -115,52 +118,58 @@ func (inst *RedisInstance) Listen() {
 }
 
 func (inst *RedisInstance) handleInput(connInput *ConnectionInput) ([]byte, error) {
-	// fmt.Println("handling new input... " + string(connInput.Input))
+	fmt.Printf("handling new input: %q\n", connInput.Input)
 
-	command, err := inst.Parser.ParseInput(connInput.Input)
+	commands, err := inst.Parser.ParseInput(connInput.Input)
 	if err != nil {
 		return nil, fmt.Errorf("could not parse input: %q, %w", string(connInput.Input), err)
 	}
 
-	resp, err := command.Handle()
-	if err != nil {
-		return nil, fmt.Errorf("command %s failed: %w", command, err)
-	}
-
-	isMaster := inst.replicationDetails.Role == redisConfig.RoleMaster
-	if wc, ok := command.(interfaces.WriteCommand); isMaster && ok && wc.IsWriteCommand() {
-		err := inst.PropagateInput(connInput.Input)
+	var resp string
+	for _, command := range commands {
+		commandResp, err := command.Handle()
 		if err != nil {
-			// Should return error here? Need better handling
-			return nil, fmt.Errorf("Error propagating input: %q, %s\n", string(connInput.Input), err.Error())
+			return nil, fmt.Errorf("command %s failed: %w", command, err)
 		}
-		connInput.IsWriteCommand = true
-	}
+		resp += commandResp
 
-	if hc, ok := command.(interfaces.HandshakeCommand); isMaster && ok && hc.IsHandshakeCommand() {
-		inst.handleHandshakeStep(connInput, hc.GetHandshakeStep())
+		isMaster := inst.replicationDetails.Role == redisConfig.RoleMaster
+		if !isMaster {
+			continue
+		}
+
+		if wc, ok := command.(interfaces.WriteCommand); ok && wc.IsWriteCommand() {
+			err := inst.PropagateInput(connInput.Input)
+			if err != nil {
+				// Should return error here? Need better handling
+				return nil, fmt.Errorf("Error propagating input: %q, %s\n", string(connInput.Input), err.Error())
+			}
+		}
+
+		if hc, ok := command.(interfaces.HandshakeCommand); ok && hc.IsHandshakeCommand() {
+			inst.handleHandshakeStep(connInput, hc.GetHandshakeStep())
+		}
 	}
 
 	return []byte(resp), nil
 }
 
 func (inst *RedisInstance) handleConnection(conn net.Conn) error {
-	// fmt.Println("Handling new connection")
+	isMasterConn := conn == inst.replicationDetails.MasterConn
+	fmt.Printf("Handling new connection (master: %v): %s\n", isMasterConn, conn.RemoteAddr().String())
 	defer func() {
-		fmt.Printf("Finished with connection \n\n")
+		fmt.Printf("Finished with connection: %s\n", conn.RemoteAddr().String())
 		conn.Close()
 	}()
 
 	bufSize := 1024
 	readBuf := make([]byte, bufSize)
-	// inputChan := make(chan []byte)
 
 	connInput := &ConnectionInput{
-		Conn:           conn,
-		Input:          []byte{},
-		HshakeStep:     interfaces.HandshakeStepNone,
-		ResponseChan:   make(chan []byte),
-		IsWriteCommand: false,
+		Conn:         conn,
+		Input:        []byte{},
+		HshakeStep:   interfaces.HandshakeStepNone,
+		ResponseChan: make(chan []byte),
 	}
 
 	for {
@@ -169,7 +178,7 @@ func (inst *RedisInstance) handleConnection(conn net.Conn) error {
 			// fmt.Println("Client closed connection")
 			return nil
 		} else if err != nil {
-			fmt.Println("Error reading from connection: ", err)
+			fmt.Printf("Error reading from connection %s: %v\n", conn.RemoteAddr().String(), err)
 			return err
 		}
 		if n == 0 {
@@ -179,25 +188,21 @@ func (inst *RedisInstance) handleConnection(conn net.Conn) error {
 		}
 
 		// fmt.Printf("read %v bytes \n", n)
-		connInput.IsWriteCommand = false
 		connInput.Input = readBuf[:n]
 		inst.inputQueue <- connInput
-		// inputChan <- readBuf[:n]
 
 		resp := <-connInput.ResponseChan
 
 		// Replica slaves don't send responses for propogated writes back to the master
-		skipResponse := inst.replicationDetails.Role == redisConfig.RoleSlave &&
-			connInput.IsWriteCommand
-		// fmt.Println("skip? ", skipResponse)
-		if skipResponse {
+		if isMasterConn {
+			fmt.Printf("skipping response for connection %s: %q \n", conn.RemoteAddr().String(), resp)
 			continue
 		}
 
-		fmt.Printf("writing: %q \n", resp)
+		fmt.Printf("writing to connection %s: %q \n", conn.RemoteAddr().String(), resp)
 		_, writeErr := conn.Write([]byte(resp))
 		if writeErr != nil {
-			fmt.Println("Error writing to connection:", writeErr)
+			fmt.Printf("Error writing to connection %s: %v\n", conn.RemoteAddr().String(), writeErr)
 			return writeErr
 		}
 	}
@@ -305,10 +310,39 @@ func (inst *RedisInstance) sendPsync(conn net.Conn) error {
 	commandParts := []string{"PSYNC", "?", "-1"}
 	command := types.CreateBulkStringArray(commandParts)
 
-	if err := inst.sendHandshakeCommand(conn, command, ""); err != nil {
-		return fmt.Errorf("failed to send PSYNC command: %w", err)
+	var err error
+	if _, err = conn.Write([]byte(command)); err != nil {
+		return fmt.Errorf("failed to write command %q: %w", command, err)
 	}
 
+	// Read the response from the master
+	response := make([]byte, 1024)
+	var n int = 0
+	if n, err = conn.Read(response); err != nil {
+		return fmt.Errorf("failed to read response: %w", err)
+	}
+
+	fullResyncResp, rdbResp, ok := strings.Cut(string(response[:n]), "\r\n")
+	if fullResyncResp == "" || !ok {
+		return fmt.Errorf("none or invalid FULLRESYNC response received from master for PSYNC command: %q" + string(response[:n]))
+	}
+
+	// RDB response may be included in this response or may be sent separately
+	if rdbResp != "" {
+		fmt.Printf("received RDB response from master with FULLRESYNC: %q\n", rdbResp)
+		// for now just ignore the rdb response
+		return nil
+	}
+
+	// RDB response not included directly in the PSYNC (FULLRESYNC) response
+	if n, err = conn.Read(response); err != nil {
+		return fmt.Errorf("failed to read RDB response: %w", err)
+	}
+	if n == 0 {
+		return fmt.Errorf("no RDB response received from master after PSYNC command")
+	}
+	fmt.Printf("received RDB response from master after FULLRESYNC: %q\n", response[:n])
+	// again just ignore rdb response
 	return nil
 }
 
@@ -324,7 +358,7 @@ func (inst *RedisInstance) sendHandshakeCommand(conn net.Conn, command, expected
 	if n, err = conn.Read(response); err != nil {
 		return fmt.Errorf("failed to read response: %w", err)
 	}
-	if expectedResp != "" && string(response[:n]) != expectedResp {
+	if expectedResp != "" && strings.ToUpper(string(response[:n])) != strings.ToUpper(expectedResp) {
 		return fmt.Errorf("unexpected response: %q", response[:n])
 	}
 
