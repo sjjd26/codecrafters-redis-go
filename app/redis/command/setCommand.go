@@ -47,7 +47,7 @@ func NewSetCommand(args []string, ctx *CommandContext) (interfaces.Command, erro
 	}, nil
 }
 
-func (cmd SetCommand) Handle() (string, error) {
+func (cmd SetCommand) Execute() (string, error) {
 	cmd.Store.Add(cmd.Key, cmd.Value)
 	if cmd.Expiry > 0 {
 		now := time.Now().UnixMilli()

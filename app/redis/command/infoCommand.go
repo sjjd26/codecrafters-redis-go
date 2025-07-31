@@ -43,7 +43,7 @@ func NewReplicationCommand(args []string, _ *CommandContext) (interfaces.Command
 	return &ReplicationCommand{}, nil
 }
 
-func (cmd *ReplicationCommand) Handle() (string, error) {
+func (cmd *ReplicationCommand) Execute() (string, error) {
 	config := redisConfig.NewRedisConfig()
 	replicationDetails := config.GetReplicationDetails()
 	if replicationDetails == nil {

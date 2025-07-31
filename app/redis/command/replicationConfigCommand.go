@@ -36,7 +36,7 @@ func NewReplicationConfigCommand(args []string, ctx *CommandContext) (interfaces
 
 // --------------------- Regular ----------------------
 
-func (cmd *ReplicationConfigCommand) Handle() (string, error) {
+func (cmd *ReplicationConfigCommand) Execute() (string, error) {
 	// For now just return OK
 	return types.OkString, nil
 }
@@ -60,7 +60,7 @@ func (cmd *ReplicationConfigCommand) GetHandshakeStep() interfaces.HandshakeStep
 
 // --------------------- GetAck ----------------------
 
-func (cmd *ReplicationConfigGetAckCommand) Handle() (string, error) {
+func (cmd *ReplicationConfigGetAckCommand) Execute() (string, error) {
 	offset := cmd.ReplicationDetails.ReplicaOffset
 	respParts := []string{"REPLCONF", "ACK", strconv.Itoa(offset)}
 	return types.CreateBulkStringArray(respParts), nil

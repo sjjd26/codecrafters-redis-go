@@ -45,7 +45,7 @@ func NewWaitCommand(args []string, ctx *CommandContext) (interfaces.Command, err
 	}, nil
 }
 
-func (cmd *WaitCommand) Handle() (string, error) {
+func (cmd *WaitCommand) Execute() (string, error) {
 	if cmd.ReplicationDetails.Role != redisConfig.RoleMaster {
 		return "", fmt.Errorf("WAIT command can only be executed on master nodes")
 	}

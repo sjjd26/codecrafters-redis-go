@@ -24,7 +24,7 @@ func NewGetCommand(args []string, ctx *CommandContext) (interfaces.Command, erro
 	}, nil
 }
 
-func (cmd *GetCommand) Handle() (string, error) {
+func (cmd *GetCommand) Execute() (string, error) {
 	if value, ok := cmd.Store.Get(cmd.Key); ok {
 		return types.CreateBulkString(value), nil
 	}

@@ -48,7 +48,7 @@ func NewConfigGetCommand(args []string, ctx *CommandContext) (interfaces.Command
 	}, nil
 }
 
-func (cmd *ConfigGetCommand) Handle() (string, error) {
+func (cmd *ConfigGetCommand) Execute() (string, error) {
 	value, ok := cmd.Config.Get(cmd.Key)
 	if ok {
 		return types.CreateKeyValueArray(string(cmd.Key), value), nil

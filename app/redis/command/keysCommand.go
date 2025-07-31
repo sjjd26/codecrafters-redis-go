@@ -26,7 +26,7 @@ func NewKeysCommand(args []string, ctx *CommandContext) (interfaces.Command, err
 	}, nil
 }
 
-func (cmd *KeysCommand) Handle() (string, error) {
+func (cmd *KeysCommand) Execute() (string, error) {
 	keys, err := cmd.Store.GetKeysByPattern(cmd.Pattern)
 	if err != nil {
 		return "", err

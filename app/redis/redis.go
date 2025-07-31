@@ -527,7 +527,7 @@ func HandleInput(inst RedisInstance, connInput *ConnectionInput) ([]byte, error)
 			return nil, fmt.Errorf("could not parse input: %q, %w", currentInput, err)
 		}
 
-		commandResp, err := command.Handle()
+		commandResp, err := command.Execute()
 		if err != nil {
 			return nil, fmt.Errorf("command %s failed: %w", command, err)
 		}

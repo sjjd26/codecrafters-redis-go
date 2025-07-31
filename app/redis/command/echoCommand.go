@@ -20,6 +20,6 @@ func NewEchoCommand(args []string, _ *CommandContext) (interfaces.Command, error
 	return EchoCommand{Message: args[0]}, nil
 }
 
-func (echoCmd EchoCommand) Handle() (string, error) {
+func (echoCmd EchoCommand) Execute() (string, error) {
 	return types.CreateBulkString(echoCmd.Message), nil
 }

@@ -21,7 +21,7 @@ func NewPingCommand(args []string, _ *CommandContext) (interfaces.Command, error
 	return &PingCommand{}, nil
 }
 
-func (cmd *PingCommand) Handle() (string, error) {
+func (cmd *PingCommand) Execute() (string, error) {
 	if cmd.Message != "" {
 		return types.CreateBulkString(cmd.Message), nil
 	}

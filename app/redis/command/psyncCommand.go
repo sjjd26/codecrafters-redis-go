@@ -39,7 +39,7 @@ func NewPsyncCommand(args []string, ctx *CommandContext) (interfaces.Command, er
 	}, nil
 }
 
-func (cmd *PsyncCommand) Handle() (string, error) {
+func (cmd *PsyncCommand) Execute() (string, error) {
 	if cmd.ReplicationId != "?" || cmd.ReplicationOffset != -1 {
 		return "", fmt.Errorf("replication and/or offset values not supported: %s, %d", cmd.ReplicationId, cmd.ReplicationOffset)
 	}
