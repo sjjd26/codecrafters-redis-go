@@ -31,11 +31,11 @@ func main() {
 	redisInstance.ListenAndRun()
 }
 
-func SetRdb(dir, dbfilename string, redisInstance *redis.RedisInstance) {
+func SetRdb(dir, dbfilename string, redisInstance redis.RedisInstance) {
 	if dir != "" && dbfilename != "" {
-		redisInstance.Config.Set(redisConfig.ConfigDir, dir)
-		redisInstance.Config.Set(redisConfig.ConfigDbFilename, dbfilename)
-		redisInstance.RestoreFromRdb()
+		redisInstance.GetConfig().Set(redisConfig.ConfigDir, dir)
+		redisInstance.GetConfig().Set(redisConfig.ConfigDbFilename, dbfilename)
+		redis.RestoreFromRdb(redisInstance)
 	}
 }
 
