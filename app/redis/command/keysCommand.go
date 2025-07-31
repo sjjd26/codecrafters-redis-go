@@ -8,10 +8,11 @@ import (
 )
 
 type KeysCommand struct {
-	pattern string
+	Pattern string
+	Store   store.RedisStore
 }
 
-func NewKeysCommand(args []string) (interfaces.Command, error) {
+func NewKeysCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
 	if len(args) < 1 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -19,12 +20,14 @@ func NewKeysCommand(args []string) (interfaces.Command, error) {
 		return nil, cmderrors.ErrTooManyArgs
 	}
 
-	return &KeysCommand{pattern: args[0]}, nil
+	return &KeysCommand{
+		Pattern: args[0],
+		Store:   ctx.Store,
+	}, nil
 }
 
 func (cmd *KeysCommand) Handle() (string, error) {
-	redisStore := store.NewRedisStore()
-	keys, err := redisStore.GetKeysByPattern(cmd.pattern)
+	keys, err := cmd.Store.GetKeysByPattern(cmd.Pattern)
 	if err != nil {
 		return "", err
 	}

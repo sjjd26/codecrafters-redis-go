@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/codecrafters-io/redis-starter-go/app/redis/command"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/parser"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/rdbRestorer"
@@ -77,6 +78,7 @@ func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (Redi
 	config.SetReplicationDetails(replicationDetails)
 
 	if masterDetails == nil {
+		fmt.Println("Creating master")
 		return &RedisMaster{
 			Config:             config,
 			Store:              store,
@@ -85,6 +87,7 @@ func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (Redi
 			replicationDetails: replicationDetails,
 		}, nil
 	} else {
+		fmt.Println("Creating replica")
 		return &RedisReplica{
 			Config:             config,
 			Store:              store,
@@ -511,10 +514,15 @@ func HandleConnection(inst RedisInstance, conn net.Conn) error {
 func HandleInput(inst RedisInstance, connInput *ConnectionInput) ([]byte, error) {
 	// fmt.Printf("handling new input: %q\n", connInput.Input)
 	var resp string
+	ctx := &command.CommandContext{
+		Store:              inst.GetStore(),
+		Config:             inst.GetConfig(),
+		ReplicationDetails: inst.GetReplicationDetails(),
+	}
 	currentInput := connInput.Input
 
 	for currentInput != nil && len(currentInput) > 0 {
-		command, inputLen, err := inst.GetParser().ParseInput(currentInput)
+		command, inputLen, err := inst.GetParser().ParseInput(currentInput, ctx)
 		if err != nil {
 			return nil, fmt.Errorf("could not parse input: %q, %w", currentInput, err)
 		}
@@ -528,7 +536,7 @@ func HandleInput(inst RedisInstance, connInput *ConnectionInput) ([]byte, error)
 		// fmt.Printf("replica offset updated to %d\n", inst.GetReplicationDetails().ReplicaOffset)
 
 		commandResp, err = inst.ProcessCommandResponse(connInput, currentInput, command, commandResp)
-
+		resp += commandResp
 		currentInput = currentInput[inputLen:]
 	}
 
@@ -546,8 +554,11 @@ func RestoreFromRdb(inst RedisInstance) error {
 	}
 
 	filepath := fmt.Sprintf("%s/%s", dir, dbfilename)
-	restorer := rdbRestorer.NewRdbRestorer(inst.GetStore())
-	err := restorer.RestoreFromRdb(filepath)
+	restorer, err := rdbRestorer.NewRdbRestorer(inst.GetStore())
+	if err != nil {
+		return fmt.Errorf("failed to create restorer: %w", err)
+	}
+	err = restorer.RestoreFromRdb(filepath)
 	if err != nil {
 		return fmt.Errorf("restoration from rdb failed: %w", err)
 	}

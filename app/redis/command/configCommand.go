@@ -9,11 +9,12 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
-type ConfigGet struct {
-	key redisConfig.ConfigKey
+type ConfigGetCommand struct {
+	Key    redisConfig.ConfigKey
+	Config redisConfig.RedisConfig
 }
 
-func NewConfig(args []string) (interfaces.Command, error) {
+func NewConfigCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
 	if len(args) < 1 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -23,13 +24,13 @@ func NewConfig(args []string) (interfaces.Command, error) {
 	case "SET":
 		return nil, cmderrors.ErrNotImplemented("CONFIG SET")
 	case "GET":
-		return NewGetCommand(args[1:])
+		return NewConfigGetCommand(args[1:], ctx)
 	default:
 		return nil, cmderrors.ErrUnknownSubCommand
 	}
 }
 
-func NewGetCommand(args []string) (interfaces.Command, error) {
+func NewConfigGetCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
 	if len(args) < 1 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -41,14 +42,16 @@ func NewGetCommand(args []string) (interfaces.Command, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ConfigGet{key: key}, nil
+	return &ConfigGetCommand{
+		Key:    key,
+		Config: ctx.Config,
+	}, nil
 }
 
-func (cmd *ConfigGet) Handle() (string, error) {
-	rConfig := redisConfig.NewRedisConfig()
-	value, ok := rConfig.Get(cmd.key)
+func (cmd *ConfigGetCommand) Handle() (string, error) {
+	value, ok := cmd.Config.Get(cmd.Key)
 	if ok {
-		return types.CreateKeyValueArray(string(cmd.key), value), nil
+		return types.CreateKeyValueArray(string(cmd.Key), value), nil
 	}
-	return types.CreateKeyValueNullArray(string(cmd.key)), nil
+	return types.CreateKeyValueNullArray(string(cmd.Key)), nil
 }

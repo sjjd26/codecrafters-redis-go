@@ -7,27 +7,23 @@ import (
 )
 
 type PingCommand struct {
-	message string
+	Message string
 }
 
-func NewPing(args []string) (interfaces.Command, error) {
+func NewPingCommand(args []string, _ *CommandContext) (interfaces.Command, error) {
 	if len(args) > 1 {
 		return nil, cmderrors.ErrTooManyArgs
 	}
 
 	if len(args) > 0 {
-		return &PingCommand{message: args[0]}, nil
+		return &PingCommand{Message: args[0]}, nil
 	}
 	return &PingCommand{}, nil
 }
 
-func (_ *PingCommand) GetType() CommandType {
-	return CommandPing
-}
-
 func (cmd *PingCommand) Handle() (string, error) {
-	if cmd.message != "" {
-		return types.CreateBulkString(cmd.message), nil
+	if cmd.Message != "" {
+		return types.CreateBulkString(cmd.Message), nil
 	}
 	return "+PONG\r\n", nil
 }

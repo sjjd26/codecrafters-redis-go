@@ -1,4 +1,4 @@
-package replicationconfig
+package command
 
 import (
 	"strconv"
@@ -15,16 +15,20 @@ type ReplicationConfigCommand struct {
 }
 
 type ReplicationConfigGetAckCommand struct {
-	Args []string
+	Args               []string
+	ReplicationDetails *redisConfig.ReplicationDetails
 }
 
-func NewReplicationConfigCommand(args []string) (interfaces.Command, error) {
+func NewReplicationConfigCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
 	if len(args) == 0 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
 
 	if strings.ToUpper(args[0]) == "GETACK" {
-		return &ReplicationConfigGetAckCommand{Args: args}, nil
+		return &ReplicationConfigGetAckCommand{
+			Args:               args,
+			ReplicationDetails: ctx.ReplicationDetails,
+		}, nil
 	}
 
 	return &ReplicationConfigCommand{Args: args}, nil
@@ -57,9 +61,7 @@ func (cmd *ReplicationConfigCommand) GetHandshakeStep() interfaces.HandshakeStep
 // --------------------- GetAck ----------------------
 
 func (cmd *ReplicationConfigGetAckCommand) Handle() (string, error) {
-	config := redisConfig.NewRedisConfig()
-	replicationDetails := config.GetReplicationDetails()
-	offset := replicationDetails.ReplicaOffset
+	offset := cmd.ReplicationDetails.ReplicaOffset
 	respParts := []string{"REPLCONF", "ACK", strconv.Itoa(offset)}
 	return types.CreateBulkStringArray(respParts), nil
 }

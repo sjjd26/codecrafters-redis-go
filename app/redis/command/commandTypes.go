@@ -3,10 +3,16 @@ package command
 import (
 	"fmt"
 
-	infocommand "github.com/codecrafters-io/redis-starter-go/app/redis/command/infoCommand"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
-	replicationconfig "github.com/codecrafters-io/redis-starter-go/app/redis/command/replicationConfigCommand"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
+	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 )
+
+type CommandContext struct {
+	Store              store.RedisStore
+	Config             redisConfig.RedisConfig
+	ReplicationDetails *redisConfig.ReplicationDetails
+}
 
 // ---------------Command Type----------------
 type CommandType int
@@ -44,28 +50,28 @@ func (ct CommandType) String() string {
 }
 
 // --------------Command Constructors-----------------
-type CommandConstructor func([]string) (interfaces.Command, error)
+type CommandConstructor func([]string, *CommandContext) (interfaces.Command, error)
 
 var CommandConstructorMap = map[string]CommandConstructor{
-	commandName[CommandPing]:              NewPing,
-	commandName[CommandEcho]:              NewEcho,
-	commandName[CommandSet]:               NewSet,
-	commandName[CommandGet]:               NewGet,
-	commandName[CommandConfig]:            NewConfig,
+	commandName[CommandPing]:              NewPingCommand,
+	commandName[CommandEcho]:              NewEchoCommand,
+	commandName[CommandSet]:               NewSetCommand,
+	commandName[CommandGet]:               NewGetCommand,
+	commandName[CommandConfig]:            NewConfigCommand,
 	commandName[CommandKeys]:              NewKeysCommand,
-	commandName[CommandInfo]:              infocommand.NewInfoCommand,
-	commandName[CommandReplicationConfig]: replicationconfig.NewReplicationConfigCommand,
+	commandName[CommandInfo]:              NewInfoCommand,
+	commandName[CommandReplicationConfig]: NewReplicationConfigCommand,
 	commandName[CommandPsync]:             NewPsyncCommand,
 	commandName[CommandWait]:              NewWaitCommand,
 }
 
 // ------------------Command-------------------
-func CommandFactory(name string, args []string) (interfaces.Command, error) {
+func CommandFactory(name string, args []string, ctx *CommandContext) (interfaces.Command, error) {
 	constructor, ok := CommandConstructorMap[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown command: %s", name)
 	}
-	return constructor(args)
+	return constructor(args, ctx)
 }
 
 // -----------------------------------------

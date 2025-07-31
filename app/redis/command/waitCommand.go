@@ -12,12 +12,13 @@ import (
 )
 
 type WaitCommand struct {
-	ReplicaCount int
-	Timeout      int
-	Start        int64
+	ReplicaCount       int
+	Timeout            int
+	Start              int64
+	ReplicationDetails *redisConfig.ReplicationDetails
 }
 
-func NewWaitCommand(args []string) (interfaces.Command, error) {
+func NewWaitCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
 	if len(args) < 2 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -37,20 +38,19 @@ func NewWaitCommand(args []string) (interfaces.Command, error) {
 	start := time.Now().UnixMilli()
 
 	return &WaitCommand{
-		ReplicaCount: replicaCount,
-		Timeout:      timeout,
-		Start:        start,
+		ReplicaCount:       replicaCount,
+		Timeout:            timeout,
+		Start:              start,
+		ReplicationDetails: ctx.ReplicationDetails,
 	}, nil
 }
 
 func (cmd *WaitCommand) Handle() (string, error) {
-	config := redisConfig.NewRedisConfig()
-	replicationDetails := config.GetReplicationDetails()
-	if replicationDetails.Role != redisConfig.RoleMaster {
+	if cmd.ReplicationDetails.Role != redisConfig.RoleMaster {
 		return "", fmt.Errorf("WAIT command can only be executed on master nodes")
 	}
 
-	replCount := len(replicationDetails.SlaveConnections)
+	replCount := len(cmd.ReplicationDetails.SlaveConnections)
 	if cmd.ReplicaCount == 0 {
 		return types.CreateInt(replCount), nil
 	}

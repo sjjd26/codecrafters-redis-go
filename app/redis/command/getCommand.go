@@ -7,26 +7,25 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
-type Get struct {
-	key string
+type GetCommand struct {
+	Key   string
+	Store store.RedisStore
 }
 
-func NewGet(args []string) (interfaces.Command, error) {
+func NewGetCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
 	if len(args) < 1 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
 
 	key := args[0]
-	return Get{key: key}, nil
+	return &GetCommand{
+		Key:   key,
+		Store: ctx.Store,
+	}, nil
 }
 
-func (_ Get) GetType() CommandType {
-	return CommandGet
-}
-
-func (cmd Get) Handle() (string, error) {
-	rStore := store.NewRedisStore()
-	if value, ok := rStore.Get(cmd.key); ok {
+func (cmd *GetCommand) Handle() (string, error) {
+	if value, ok := cmd.Store.Get(cmd.Key); ok {
 		return types.CreateBulkString(value), nil
 	}
 	return types.BulkStringNull, nil

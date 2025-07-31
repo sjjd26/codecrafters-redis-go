@@ -22,10 +22,13 @@ type RdbRestorer struct {
 	store store.RedisStore
 }
 
-func NewRdbRestorer(store store.RedisStore) RedisRdbRestorer {
+func NewRdbRestorer(store store.RedisStore) (RedisRdbRestorer, error) {
+	if store == nil {
+		return nil, fmt.Errorf("store cannot be nil")
+	}
 	return &RdbRestorer{
 		store: store,
-	}
+	}, nil
 }
 
 func (r *RdbRestorer) RestoreFromRdb(filepath string) error {

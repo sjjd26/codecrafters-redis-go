@@ -12,13 +12,14 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
-type Set struct {
-	key    string
-	value  string
-	expiry int64
+type SetCommand struct {
+	Key    string
+	Value  string
+	Expiry int64
+	Store  store.RedisStore
 }
 
-func NewSet(args []string) (interfaces.Command, error) {
+func NewSetCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
 	if len(args) < 2 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -38,23 +39,23 @@ func NewSet(args []string) (interfaces.Command, error) {
 		}
 	}
 
-	return Set{key: key, value: value, expiry: expiry}, nil
+	return SetCommand{
+		Key:    key,
+		Value:  value,
+		Expiry: expiry,
+		Store:  ctx.Store,
+	}, nil
 }
 
-func (_ Set) GetType() CommandType {
-	return CommandSet
-}
-
-func (cmd Set) Handle() (string, error) {
-	rStore := store.NewRedisStore()
-	rStore.Add(cmd.key, cmd.value)
-	if cmd.expiry > 0 {
+func (cmd SetCommand) Handle() (string, error) {
+	cmd.Store.Add(cmd.Key, cmd.Value)
+	if cmd.Expiry > 0 {
 		now := time.Now().UnixMilli()
-		rStore.AddExpiry(cmd.key, cmd.expiry+now)
+		cmd.Store.AddExpiry(cmd.Key, cmd.Expiry+now)
 	}
 	return types.OkString, nil
 }
 
-func (cmd Set) IsWriteCommand() bool {
+func (cmd SetCommand) IsWriteCommand() bool {
 	return true
 }

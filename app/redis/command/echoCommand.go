@@ -6,24 +6,20 @@ import (
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
-type Echo struct {
+type EchoCommand struct {
 	Message string
 }
 
-func NewEcho(args []string) (interfaces.Command, error) {
+func NewEchoCommand(args []string, _ *CommandContext) (interfaces.Command, error) {
 	if len(args) == 0 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	} else if len(args) > 1 {
 		return nil, cmderrors.ErrTooManyArgs
 	}
 
-	return Echo{Message: args[0]}, nil
+	return EchoCommand{Message: args[0]}, nil
 }
 
-func (_ Echo) GetType() CommandType {
-	return CommandEcho
-}
-
-func (echoCmd Echo) Handle() (string, error) {
+func (echoCmd EchoCommand) Handle() (string, error) {
 	return types.CreateBulkString(echoCmd.Message), nil
 }
