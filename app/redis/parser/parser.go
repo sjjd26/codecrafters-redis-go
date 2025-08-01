@@ -40,8 +40,11 @@ func (_ *RedisParserImpl) GetAggregateLength(input []byte) (int, int, error) {
 }
 
 func (parser *RedisParserImpl) ParseBulkString(input []byte) (string, int, error) {
-	// fmt.Printf("hello 2, %q \n", input)
 	// fmt.Printf("parsing bulk string, input: %q \n", input)
+	if len(input) == 0 {
+		return "", -1, fmt.Errorf("input is empty")
+	}
+
 	typeByte := input[0]
 	err := types.CheckTypeByte(typeByte, types.RespBulkStr)
 	if err != nil {
@@ -55,11 +58,16 @@ func (parser *RedisParserImpl) ParseBulkString(input []byte) (string, int, error
 	}
 
 	// fmt.Printf("str length: %v, p: %v \n", strLen, p)
-	strEnd := p + strLen
+	strEnd := p + strLen + 2 // +2 for CLRF
+	if strEnd > len(input) {
+		return "", -1, fmt.Errorf("input length: %d, too short for stated length %d", len(input), strLen)
+	}
 	str := string(input[p:strEnd])
+	if !strings.HasSuffix(str, "\r\n") {
+		return "", -1, fmt.Errorf("bulk string does not end with CRLF: %q", str)
+	}
 
-	// Add 2 for CLRF
-	return str, strEnd + 2, nil
+	return str[:strLen], strEnd, nil
 }
 
 func (parser *RedisParserImpl) ParseArray(input []byte) ([]string, int, error) {
