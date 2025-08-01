@@ -47,6 +47,9 @@ type RedisMaster struct {
 
 	inputQueue         chan *ConnectionInput
 	replicationDetails *redisConfig.ReplicationDetails
+
+	replicationInputQueue  chan *ReplicaResponse
+	replicationOutputQueue chan []byte
 }
 
 type RedisReplica struct {
@@ -65,11 +68,17 @@ type ConnectionInput struct {
 	ResponseChan chan []byte
 }
 
+type ReplicaResponse struct {
+	Conn     net.Conn
+	Response []byte
+	Error    error
+}
+
 func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (RedisInstance, error) {
 	config := redisConfig.NewRedisConfig()
 	store := store.NewRedisStore()
 	parser := &parser.RedisParserImpl{}
-	inputQueue := make(chan *ConnectionInput, 10)
+	inputQueue := make(chan *ConnectionInput, 20)
 
 	replicationDetails, err := redisConfig.NewReplicationDetails(selfDetails, masterDetails)
 	if err != nil {
@@ -80,11 +89,13 @@ func NewRedisInstance(selfDetails, masterDetails *redisConfig.HostDetails) (Redi
 	if masterDetails == nil {
 		fmt.Println("Creating master")
 		return &RedisMaster{
-			Config:             config,
-			Store:              store,
-			Parser:             parser,
-			inputQueue:         inputQueue,
-			replicationDetails: replicationDetails,
+			Config:                 config,
+			Store:                  store,
+			Parser:                 parser,
+			inputQueue:             inputQueue,
+			replicationDetails:     replicationDetails,
+			replicationInputQueue:  make(chan *ReplicaResponse, 20),
+			replicationOutputQueue: make(chan []byte, 20),
 		}, nil
 	} else {
 		fmt.Println("Creating replica")
@@ -122,7 +133,11 @@ func (m *RedisMaster) GetStore() store.RedisStore {
 
 func (m *RedisMaster) ListenAndRun() error {
 	go Listen(m)
-	err := RunMainEventLoop(m)
+
+	go m.ReplicationInputEventLoop()
+	go m.ReplicationOutputEventLoop()
+
+	err := MainEventLoop(m)
 	if err != nil {
 		return fmt.Errorf("main event loop error: %w", err)
 	}
@@ -135,13 +150,8 @@ func (m *RedisMaster) ProcessCommandResponse(connInput *ConnectionInput, command
 	}
 
 	if wc, ok := command.(interfaces.WriteCommand); ok && wc.IsWriteCommand() {
-		err := m.PropagateInput(commandInput)
-		if err != nil {
-			// Should return error here? Need better handling
-			return "", fmt.Errorf("Error propagating input: %q, %s\n", commandInput, err.Error())
-		}
+		m.replicationOutputQueue <- commandInput
 	}
-
 	if hc, ok := command.(interfaces.HandshakeCommand); ok && hc.IsHandshakeCommand() {
 		m.HandleHandshakeStep(connInput, hc.GetHandshakeStep())
 	}
@@ -167,20 +177,61 @@ func (m *RedisMaster) HandleHandshakeStep(connInput *ConnectionInput, newStep in
 	}
 }
 
-// SHOULD USE A REPLICATION STREAM -> SEND INPUT TO REPLICATION STREAM WHICH IS THEN SENT TO ALL SLAVES VIA BACKGROUND PROCESS?
-func (m *RedisMaster) PropagateInput(input []byte) error {
-	// fmt.Printf("Propagating input: %q \n", input)
-	if m.replicationDetails.Role != redisConfig.RoleMaster {
-		return fmt.Errorf("only master nodes can propagate inputs")
-	}
-
-	for _, slaveConn := range m.replicationDetails.SlaveConnections {
-		if _, err := slaveConn.Write(input); err != nil {
-			return fmt.Errorf("failed to write input to slave connection: %w", err)
+func (m *RedisMaster) ReplicationInputEventLoop() {
+	for response := range m.replicationInputQueue {
+		if response.Error != nil {
+			fmt.Printf("Error from slave %s: %v\n", response.Conn.RemoteAddr().String(), response.Error)
+			continue
 		}
+		m.HandleReplicaResponse(response.Conn, response.Response)
+	}
+}
+
+func (m *RedisMaster) HandleReplicaResponse(conn net.Conn, response []byte) error {
+	commandParts, _, err := m.Parser.ParseInput(response)
+	if err != nil {
+		fmt.Printf("Failed to parse input from replica %s: %v\n", conn.RemoteAddr().String(), err)
+		return fmt.Errorf("failed to parse input from replica %s: %w", conn.RemoteAddr().String(), err)
 	}
 
+	ctx := &command.CommandContext{
+		Store:              m.Store,
+		Config:             m.Config,
+		ReplicationDetails: m.replicationDetails,
+		Conn:               conn,
+	}
+	commandResp, _, err := HandleCommand(m, commandParts, ctx)
+	if err != nil {
+		return fmt.Errorf("failed to handle command from replica %s: %w", conn.RemoteAddr().String(), err)
+	}
+
+	// for now we just log the command response, do not propagate it further
+	fmt.Printf("Received command response from replica %s: %q\n", conn.RemoteAddr().String(), commandResp)
 	return nil
+}
+
+func (m *RedisMaster) ReplicationOutputEventLoop() {
+	for command := range m.replicationOutputQueue {
+		m.BroadcastToReplicas(command)
+	}
+}
+
+func (m *RedisMaster) BroadcastToReplicas(command []byte) {
+	m.replicationDetails.ReplicaOffset += len(command)
+
+	// fmt.Printf("Propagating input: %q \n", input)
+	for conn := range m.replicationDetails.SlaveConnections {
+		go func(slaveConn net.Conn) {
+			_, err := slaveConn.Write(command)
+			if err != nil {
+				m.replicationInputQueue <- &ReplicaResponse{
+					Conn:  slaveConn,
+					Error: err,
+				}
+				panic(err)
+			}
+		}(conn)
+	}
 }
 
 // --------------------- Redis Replica --------------------------
@@ -221,7 +272,7 @@ func (r *RedisReplica) ListenAndRun() error {
 		}
 	}()
 
-	err = RunMainEventLoop(r)
+	err = MainEventLoop(r)
 	if err != nil {
 		return fmt.Errorf("main event loop: %w", err)
 	}
@@ -334,6 +385,7 @@ func (r *RedisReplica) ProcessCommandResponse(connInput *ConnectionInput, comman
 		return response, nil
 	}
 
+	r.replicationDetails.ReplicaOffset += len(commandInput)
 	if mc, ok := command.(interfaces.MasterResponseCommand); ok && mc.IsMasterResponseCommand() {
 		return response, nil
 	}
@@ -350,7 +402,6 @@ func (r *RedisReplica) SendPsync(conn net.Conn) ([]byte, error) {
 		return nil, fmt.Errorf("failed to write command %q: %w", command, err)
 	}
 
-	// Read the response from the master
 	response := make([]byte, 1024)
 	var n int = 0
 	if n, err = conn.Read(response); err != nil {
@@ -418,7 +469,7 @@ func (r *RedisReplica) SendHandshakeCommand(conn net.Conn, command, expectedResp
 
 // --------------------- Helper functions --------------------------
 
-func RunMainEventLoop(inst RedisInstance) error {
+func MainEventLoop(inst RedisInstance) error {
 	for inputConn := range inst.GetInputQueue() {
 		// fmt.Println("event loop received input")
 		response, err := HandleInput(inst, inputConn)
@@ -491,6 +542,19 @@ func HandleConnection(inst RedisInstance, conn net.Conn) error {
 			return nil
 		}
 
+		if m, ok := inst.(*RedisMaster); ok {
+			_, isReplicaConn := m.GetReplicationDetails().GetSlaveConnDetails(conn)
+			if isReplicaConn {
+				replicaResp := &ReplicaResponse{
+					Conn:     conn,
+					Response: readBuf[:n],
+				}
+				m.replicationInputQueue <- replicaResp
+				fmt.Printf("Received input from replica %s: %q\n", conn.RemoteAddr().String(), replicaResp.Response)
+				continue // skip further processing for replica connections
+			}
+		}
+
 		// fmt.Printf("read %v bytes \n", n)
 		connInput.Input = readBuf[:n]
 		inst.GetInputQueue() <- connInput
@@ -518,22 +582,20 @@ func HandleInput(inst RedisInstance, connInput *ConnectionInput) ([]byte, error)
 		Store:              inst.GetStore(),
 		Config:             inst.GetConfig(),
 		ReplicationDetails: inst.GetReplicationDetails(),
+		Conn:               connInput.Conn,
 	}
 	currentInput := connInput.Input
 
 	for currentInput != nil && len(currentInput) > 0 {
-		command, inputLen, err := inst.GetParser().ParseInput(currentInput, ctx)
+		commandParts, inputLen, err := inst.GetParser().ParseInput(currentInput)
 		if err != nil {
-			return nil, fmt.Errorf("could not parse input: %q, %w", currentInput, err)
+			return nil, fmt.Errorf("failed to parse input: %q, %w", currentInput, err)
 		}
 
-		commandResp, err := command.Execute()
+		commandResp, command, err := HandleCommand(inst, commandParts, ctx)
 		if err != nil {
-			return nil, fmt.Errorf("command %s failed: %w", command, err)
+			return nil, fmt.Errorf("failed to handle command %s: %w", commandParts[0], err)
 		}
-
-		inst.GetReplicationDetails().ReplicaOffset += inputLen
-		// fmt.Printf("replica offset updated to %d\n", inst.GetReplicationDetails().ReplicaOffset)
 
 		commandResp, err = inst.ProcessCommandResponse(connInput, currentInput, command, commandResp)
 		resp += commandResp
@@ -541,6 +603,20 @@ func HandleInput(inst RedisInstance, connInput *ConnectionInput) ([]byte, error)
 	}
 
 	return []byte(resp), nil
+}
+
+func HandleCommand(inst RedisInstance, commandParts []string, ctx *command.CommandContext) (string, interfaces.Command, error) {
+	command, err := inst.GetParser().ParseCommand(commandParts, ctx)
+	if err != nil {
+		return "", nil, fmt.Errorf("failed to parse command %s: %w", commandParts[0], err)
+	}
+
+	commandResp, err := command.Execute()
+	if err != nil {
+		return "", nil, fmt.Errorf("command %s failed: %w", command, err)
+	}
+
+	return commandResp, command, nil
 }
 
 func RestoreFromRdb(inst RedisInstance) error {

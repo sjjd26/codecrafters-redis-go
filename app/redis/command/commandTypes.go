@@ -2,6 +2,7 @@ package command
 
 import (
 	"fmt"
+	"net"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
@@ -12,6 +13,7 @@ type CommandContext struct {
 	Store              store.RedisStore
 	Config             redisConfig.RedisConfig
 	ReplicationDetails *redisConfig.ReplicationDetails
+	Conn               net.Conn
 }
 
 // ---------------Command Type----------------

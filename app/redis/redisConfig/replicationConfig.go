@@ -25,15 +25,14 @@ type ReplicationDetails struct {
 	MasterDetails    *HostDetails
 	MasterReplId     string
 	MasterReplOffset int
-	SlaveConnections []net.Conn
-	SlaveDetails     map[net.Conn]*SlaveDetails
+	SlaveConnections map[net.Conn]*SlaveDetails
 	MasterConn       net.Conn
 	ReplicaOffset    int // Offset for the replica
 }
 
 type SlaveDetails struct {
-	Conn           net.Conn
-	ExpectedOffset int
+	Conn         net.Conn
+	LatestOffset int
 }
 
 func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*ReplicationDetails, error) {
@@ -61,8 +60,7 @@ func NewReplicationDetails(selfDetails, masterDetails *HostDetails) (*Replicatio
 		MasterReplOffset: masterReplOffset,
 		SelfDetails:      selfDetails,
 		MasterDetails:    masterDetails,
-		SlaveConnections: []net.Conn{},
-		SlaveDetails:     make(map[net.Conn]*SlaveDetails),
+		SlaveConnections: make(map[net.Conn]*SlaveDetails),
 		MasterConn:       nil,
 		ReplicaOffset:    0,
 	}
@@ -85,5 +83,19 @@ func generateRandomId(length int) (string, error) {
 }
 
 func (replicationDetails *ReplicationDetails) AddSlaveConn(conn net.Conn) {
-	replicationDetails.SlaveConnections = append(replicationDetails.SlaveConnections, conn)
+	replicationDetails.SlaveConnections[conn] = &SlaveDetails{
+		Conn:         conn,
+		LatestOffset: 0,
+	}
+}
+
+func (replicationDetails *ReplicationDetails) RemoveSlaveConn(conn net.Conn) {
+	if _, exists := replicationDetails.SlaveConnections[conn]; exists {
+		delete(replicationDetails.SlaveConnections, conn)
+	}
+}
+
+func (replicationDetails *ReplicationDetails) GetSlaveConnDetails(conn net.Conn) (*SlaveDetails, bool) {
+	slaveDetails, exists := replicationDetails.SlaveConnections[conn]
+	return slaveDetails, exists
 }

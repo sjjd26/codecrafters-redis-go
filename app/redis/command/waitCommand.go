@@ -62,3 +62,8 @@ func (cmd *WaitCommand) Execute() (string, error) {
 
 	return types.CreateInt(replCount), nil
 }
+
+// Check existing replica offsets to see if they match the expected count
+// Otherwise:
+// Send the GETACK command to the replicas and wait for their responses
+// Will need to block until at least `ReplicaCount` replicas respond or timeout

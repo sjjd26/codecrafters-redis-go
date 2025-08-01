@@ -14,7 +14,8 @@ var ErrAggregateLength = fmt.Errorf("failed to get length of aggregate type")
 var ErrTypeByteCheck = fmt.Errorf("failed type byte check")
 
 type RedisParser interface {
-	ParseInput(input []byte, ctx *command.CommandContext) (interfaces.Command, int, error)
+	ParseInput(input []byte) ([]string, int, error)
+	ParseCommand(parts []string, ctx *command.CommandContext) (interfaces.Command, error)
 	GetAggregateLength(input []byte) (int, int, error)
 }
 
@@ -129,7 +130,7 @@ func (_ *RedisParserImpl) ParseCommand(parts []string, ctx *command.CommandConte
 // Expects full input string -> array consisting only of bulk strings
 // E.g. *2\r\n $4\r\n LLEN\r\n $6\r\n mylist\r\n
 // See Redis docs on protocol spec: https://redis.io/docs/latest/develop/reference/protocol-spec/
-func (parser *RedisParserImpl) ParseInput(input []byte, ctx *command.CommandContext) (interfaces.Command, int, error) {
+func (parser *RedisParserImpl) ParseInput(input []byte) ([]string, int, error) {
 	if len(input) == 0 {
 		return nil, -1, fmt.Errorf("input is empty")
 	}
@@ -149,12 +150,5 @@ func (parser *RedisParserImpl) ParseInput(input []byte, ctx *command.CommandCont
 		return nil, -1, fmt.Errorf("input array is empty")
 	}
 
-	command, err := parser.ParseCommand(commandParts, ctx)
-	if err != nil {
-		return nil, -1, fmt.Errorf("failed to parse command %s: %w", commandParts[0], err)
-	}
-
-	// commands = append(commands, command)
-
-	return command, p, nil
+	return commandParts, p, nil
 }
