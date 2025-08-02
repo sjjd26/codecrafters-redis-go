@@ -602,9 +602,9 @@ func HandleInput(inst RedisInstance, connInput *ConnectionInput) ([]byte, error)
 		}
 
 		// fmt.Printf("command executed, response before processing: %q\n", commandResp)
-		currentInput = currentInput[inputLen:]
-		commandResp, err = inst.ProcessCommandResponse(connInput, currentInput, command, commandResp)
+		commandResp, err = inst.ProcessCommandResponse(connInput, currentInput[:inputLen], command, commandResp)
 		resp += commandResp
+		currentInput = currentInput[inputLen:]
 	}
 
 	return []byte(resp), nil
