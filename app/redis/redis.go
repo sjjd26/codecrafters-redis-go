@@ -263,8 +263,7 @@ func (r *RedisReplica) ListenAndRun() error {
 	if err != nil {
 		return fmt.Errorf("handshake error: %w", err)
 	}
-	r.replicationDetails.MasterConn = conn
-	func() {
+	go func() {
 		// fmt.Printf("Handling connection to master node: %s\n", conn.RemoteAddr().String())
 		err := HandleConnection(r, conn)
 		if err != nil {
@@ -299,6 +298,7 @@ func (r *RedisReplica) Handshake() (net.Conn, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to master %s: %w", address, err)
 	}
+	r.replicationDetails.MasterConn = conn
 
 	// fmt.Println("Sending PING...")
 	if err := r.SendPing(conn); err != nil {
@@ -379,19 +379,6 @@ func (r *RedisReplica) SendReplConfCapaPysync2(conn net.Conn) error {
 	return nil
 }
 
-func (r *RedisReplica) ProcessCommandResponse(connInput *ConnectionInput, commandInput []byte, command interfaces.Command, response string) (string, error) {
-	isMasterConn := connInput.Conn == r.GetReplicationDetails().MasterConn
-	if !isMasterConn {
-		return response, nil
-	}
-
-	r.replicationDetails.ReplicaOffset += len(commandInput)
-	if mc, ok := command.(interfaces.MasterResponseCommand); ok && mc.IsMasterResponseCommand() {
-		return response, nil
-	}
-	return "", nil
-}
-
 // Returns any remaining input from the master after FULLRESYNC + RDB response
 func (r *RedisReplica) SendPsync(conn net.Conn) ([]byte, error) {
 	commandParts := []string{"PSYNC", "?", "-1"}
@@ -422,7 +409,7 @@ func (r *RedisReplica) SendPsync(conn net.Conn) ([]byte, error) {
 			return nil, fmt.Errorf("RDB response length exceeds available data: %d > %d", p+rdbLen, len(rdbResp))
 		}
 		if p+rdbLen == len(rdbResp) {
-			// fmt.Println("RDB response is complete, no additional input received")
+			fmt.Println("RDB response is complete, no additional input received")
 			return nil, nil
 		}
 		return rdbResp[p+rdbLen:], nil
@@ -430,7 +417,7 @@ func (r *RedisReplica) SendPsync(conn net.Conn) ([]byte, error) {
 
 	// RDB response may be included in this response or may be sent separately
 	if rdbResp != "" {
-		// fmt.Printf("received RDB response from master with FULLRESYNC: %q\n", rdbResp)
+		fmt.Printf("received RDB response from master with FULLRESYNC: %q\n", rdbResp)
 		// for now just ignore the rdb response
 		return getRemainingInput([]byte(rdbResp))
 	}
@@ -443,7 +430,7 @@ func (r *RedisReplica) SendPsync(conn net.Conn) ([]byte, error) {
 		return nil, fmt.Errorf("no RDB response received from master after PSYNC command")
 	}
 
-	// fmt.Printf("received RDB response from master after FULLRESYNC: %q\n", response[:n])
+	fmt.Printf("received RDB response from master after FULLRESYNC: %q\n", response[:n])
 	// again just ignore rdb response
 	return getRemainingInput(response[:n])
 }
@@ -467,9 +454,25 @@ func (r *RedisReplica) SendHandshakeCommand(conn net.Conn, command, expectedResp
 	return nil
 }
 
+func (r *RedisReplica) ProcessCommandResponse(connInput *ConnectionInput, commandInput []byte, command interfaces.Command, response string) (string, error) {
+	isMasterConn := connInput.Conn == r.GetReplicationDetails().MasterConn
+	fmt.Printf("Processing command response for connection (master: %v): %q\n", isMasterConn, response)
+	if !isMasterConn {
+		return response, nil
+	}
+
+	r.replicationDetails.ReplicaOffset += len(commandInput)
+	fmt.Printf("Replica offset updated to %d\n", r.replicationDetails.ReplicaOffset)
+	if mc, ok := command.(interfaces.MasterResponseCommand); ok && mc.IsMasterResponseCommand() {
+		return response, nil
+	}
+	return "", nil
+}
+
 // --------------------- Helper functions --------------------------
 
 func MainEventLoop(inst RedisInstance) error {
+	// fmt.Println("Starting main event loop...")
 	for inputConn := range inst.GetInputQueue() {
 		// fmt.Println("event loop received input")
 		response, err := HandleInput(inst, inputConn)
@@ -530,7 +533,7 @@ func HandleConnection(inst RedisInstance, conn net.Conn) error {
 	for {
 		n, err := conn.Read(readBuf)
 		if err != nil && err.Error() == "EOF" {
-			// fmt.Println("Client closed connection")
+			fmt.Println("Client closed connection")
 			return nil
 		} else if err != nil {
 			fmt.Printf("Error reading from connection %s: %v\n", conn.RemoteAddr().String(), err)
@@ -549,17 +552,18 @@ func HandleConnection(inst RedisInstance, conn net.Conn) error {
 					Conn:     conn,
 					Response: readBuf[:n],
 				}
-				m.replicationInputQueue <- replicaResp
 				fmt.Printf("Received input from replica %s: %q\n", conn.RemoteAddr().String(), replicaResp.Response)
-				continue // skip further processing for replica connections
+				m.replicationInputQueue <- replicaResp
+				continue // Skip further processing for replica connections
 			}
 		}
 
-		// fmt.Printf("read %v bytes \n", n)
+		// fmt.Printf("received input %q \n", readBuf[:n])
 		connInput.Input = readBuf[:n]
 		inst.GetInputQueue() <- connInput
 
 		resp := <-connInput.ResponseChan
+		// fmt.Printf("response received for connection %s: %q\n", conn.RemoteAddr().String(), resp)
 
 		if len(resp) == 0 {
 			fmt.Printf("no response for connection (master: %v) %s input\n", isMasterConn, conn.RemoteAddr().String())
@@ -576,7 +580,7 @@ func HandleConnection(inst RedisInstance, conn net.Conn) error {
 }
 
 func HandleInput(inst RedisInstance, connInput *ConnectionInput) ([]byte, error) {
-	// fmt.Printf("handling new input: %q\n", connInput.Input)
+	fmt.Printf("handling new input: %q\n", connInput.Input)
 	var resp string
 	ctx := &command.CommandContext{
 		Store:              inst.GetStore(),
@@ -597,9 +601,10 @@ func HandleInput(inst RedisInstance, connInput *ConnectionInput) ([]byte, error)
 			return nil, fmt.Errorf("failed to handle command %s: %w", commandParts[0], err)
 		}
 
+		// fmt.Printf("command executed, response before processing: %q\n", commandResp)
+		currentInput = currentInput[inputLen:]
 		commandResp, err = inst.ProcessCommandResponse(connInput, currentInput, command, commandResp)
 		resp += commandResp
-		currentInput = currentInput[inputLen:]
 	}
 
 	return []byte(resp), nil

@@ -14,7 +14,7 @@ import (
 type WaitCommand struct {
 	ReplicaCount       int
 	Timeout            int
-	Start              int64
+	Start              time.Time
 	ReplicationDetails *redisConfig.ReplicationDetails
 }
 
@@ -35,7 +35,7 @@ func NewWaitCommand(args []string, ctx *CommandContext) (interfaces.Command, err
 	if err != nil || timeout < 0 {
 		return nil, fmt.Errorf("invalid timeout value: %w", err)
 	}
-	start := time.Now().UnixMilli()
+	start := time.Now()
 
 	return &WaitCommand{
 		ReplicaCount:       replicaCount,
@@ -55,15 +55,45 @@ func (cmd *WaitCommand) Execute() (string, error) {
 		return types.CreateInt(replCount), nil
 	}
 
-	timeDiff := time.Now().UnixMilli() - cmd.Start
-	if cmd.Timeout > 0 && timeDiff < int64(cmd.Timeout) {
-		time.Sleep(time.Duration(timeDiff) * time.Millisecond)
+	currentUpToDate := cmd.CheckLatestReplicaOffsets()
+	if currentUpToDate >= cmd.ReplicaCount {
+		return types.CreateInt(currentUpToDate), nil
 	}
 
-	return types.CreateInt(replCount), nil
+	err := cmd.BroadcastGetAck()
+	if err != nil {
+		return "", fmt.Errorf("failed to broadcast REPLCONF GETACK: %w", err)
+	}
+
+	timeoutDuration := time.Duration(cmd.Timeout) * time.Millisecond
+	for time.Since(cmd.Start) < timeoutDuration {
+		currentUpToDate = cmd.CheckLatestReplicaOffsets()
+		if currentUpToDate >= cmd.ReplicaCount {
+			return types.CreateInt(currentUpToDate), nil
+		}
+		time.Sleep(10 * time.Millisecond) // Sleep briefly to avoid busy waiting
+	}
+
+	return types.CreateInt(currentUpToDate), nil
 }
 
-// Check existing replica offsets to see if they match the expected count
-// Otherwise:
-// Send the GETACK command to the replicas and wait for their responses
-// Will need to block until at least `ReplicaCount` replicas respond or timeout
+func (cmd *WaitCommand) CheckLatestReplicaOffsets() int {
+	var count int
+	for _, replica := range cmd.ReplicationDetails.SlaveConnections {
+		if replica.LatestOffset >= cmd.ReplicationDetails.ReplicaOffset {
+			count++
+		}
+	}
+	return count
+}
+
+func (cmd *WaitCommand) BroadcastGetAck() error {
+	commandParts := []string{"REPLCONF", "GETACK", "*"}
+	command := types.CreateBulkStringArray(commandParts)
+	for replicaConn, _ := range cmd.ReplicationDetails.SlaveConnections {
+		if _, err := replicaConn.Write([]byte(command)); err != nil {
+			return fmt.Errorf("failed to send REPLCONF GETACK to replica: %w", err)
+		}
+	}
+	return nil
+}
