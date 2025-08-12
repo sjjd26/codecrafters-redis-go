@@ -89,7 +89,7 @@ func (cmd *WaitCommand) CheckLatestReplicaOffsets() int {
 func (cmd *WaitCommand) BroadcastGetAck() error {
 	commandParts := []string{"REPLCONF", "GETACK", "*"}
 	command := types.CreateBulkStringArray(commandParts)
-	for replicaConn, _ := range cmd.ReplicationDetails.SlaveConnections {
+	for replicaConn := range cmd.ReplicationDetails.SlaveConnections {
 		if _, err := replicaConn.Write([]byte(command)); err != nil {
 			return fmt.Errorf("failed to send REPLCONF GETACK to replica: %w", err)
 		}
