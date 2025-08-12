@@ -2,7 +2,6 @@ package command
 
 import (
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
@@ -10,7 +9,7 @@ type PingCommand struct {
 	Message string
 }
 
-func NewPingCommand(args []string, _ *CommandContext) (interfaces.Command, error) {
+func NewPingCommand(args []string, _ *CommandContext) (Command, error) {
 	if len(args) > 1 {
 		return nil, cmderrors.ErrTooManyArgs
 	}
@@ -32,6 +31,6 @@ func (cmd *PingCommand) IsHandshakeCommand() bool {
 	return true
 }
 
-func (cmd *PingCommand) GetHandshakeStep() interfaces.HandshakeStep {
-	return interfaces.HandshakeStepPing
+func (cmd *PingCommand) GetHandshakeStep() HandshakeStep {
+	return HandshakeStepPing
 }

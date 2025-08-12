@@ -7,7 +7,6 @@ import (
 	"time"
 
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
@@ -19,7 +18,7 @@ type SetCommand struct {
 	Store  store.RedisStore
 }
 
-func NewSetCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
+func NewSetCommand(args []string, ctx *CommandContext) (Command, error) {
 	if len(args) < 2 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -43,12 +42,13 @@ func NewSetCommand(args []string, ctx *CommandContext) (interfaces.Command, erro
 		Key:    key,
 		Value:  value,
 		Expiry: expiry,
-		Store:  ctx.Store,
+		Store:  *ctx.Store,
 	}, nil
 }
 
 func (cmd SetCommand) Execute() (string, error) {
-	cmd.Store.Add(cmd.Key, cmd.Value)
+	stringValue := store.NewRedisString(cmd.Value)
+	cmd.Store.Add(cmd.Key, stringValue)
 	if cmd.Expiry > 0 {
 		now := time.Now().UnixMilli()
 		cmd.Store.AddExpiry(cmd.Key, cmd.Expiry+now)

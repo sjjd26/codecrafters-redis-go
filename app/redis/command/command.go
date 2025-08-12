@@ -1,4 +1,4 @@
-package interfaces
+package command
 
 type Command interface {
 	// GetType() CommandType

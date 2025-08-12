@@ -5,7 +5,6 @@ import (
 	"strings"
 
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
@@ -21,7 +20,7 @@ var InfoSubCommandMap = map[string]InfoSubCommand{
 	"replication": InfoSubCommandReplication,
 }
 
-func NewInfoCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
+func NewInfoCommand(args []string, ctx *CommandContext) (Command, error) {
 	if len(args) < 1 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -39,7 +38,7 @@ func NewInfoCommand(args []string, ctx *CommandContext) (interfaces.Command, err
 
 type ReplicationCommand struct{}
 
-func NewReplicationCommand(args []string, _ *CommandContext) (interfaces.Command, error) {
+func NewReplicationCommand(args []string, _ *CommandContext) (Command, error) {
 	return &ReplicationCommand{}, nil
 }
 

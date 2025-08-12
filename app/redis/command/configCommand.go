@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
@@ -14,7 +13,7 @@ type ConfigGetCommand struct {
 	Config redisConfig.RedisConfig
 }
 
-func NewConfigCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
+func NewConfigCommand(args []string, ctx *CommandContext) (Command, error) {
 	if len(args) < 1 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -30,7 +29,7 @@ func NewConfigCommand(args []string, ctx *CommandContext) (interfaces.Command, e
 	}
 }
 
-func NewConfigGetCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
+func NewConfigGetCommand(args []string, ctx *CommandContext) (Command, error) {
 	if len(args) < 1 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}

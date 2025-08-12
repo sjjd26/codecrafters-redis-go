@@ -19,10 +19,10 @@ type RedisRdbRestorer interface {
 }
 
 type RdbRestorer struct {
-	store store.RedisStore
+	store *store.RedisStore
 }
 
-func NewRdbRestorer(store store.RedisStore) (RedisRdbRestorer, error) {
+func NewRdbRestorer(store *store.RedisStore) (RedisRdbRestorer, error) {
 	if store == nil {
 		return nil, fmt.Errorf("store cannot be nil")
 	}
@@ -44,7 +44,8 @@ func (r *RdbRestorer) RestoreFromRdb(filepath string) error {
 	}
 
 	for _, strObj := range stringObjects {
-		r.store.Add(strObj.Key, string(strObj.Value))
+		storeValue := store.NewRedisString(string(strObj.Value))
+		r.store.Add(strObj.Key, storeValue)
 		if strObj.Expiration != nil {
 			r.store.AddExpiry(strObj.Key, strObj.Expiration.UnixMilli())
 		}

@@ -2,17 +2,16 @@ package command
 
 import (
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
 type KeysCommand struct {
 	Pattern string
-	Store   store.RedisStore
+	Store   *store.RedisStore
 }
 
-func NewKeysCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
+func NewKeysCommand(args []string, ctx *CommandContext) (Command, error) {
 	if len(args) < 1 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}

@@ -2,17 +2,16 @@ package command
 
 import (
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
 type GetCommand struct {
 	Key   string
-	Store store.RedisStore
+	Store *store.RedisStore
 }
 
-func NewGetCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
+func NewGetCommand(args []string, ctx *CommandContext) (Command, error) {
 	if len(args) < 1 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -25,7 +24,7 @@ func NewGetCommand(args []string, ctx *CommandContext) (interfaces.Command, erro
 }
 
 func (cmd *GetCommand) Execute() (string, error) {
-	if value, ok := cmd.Store.Get(cmd.Key); ok {
+	if value, ok := cmd.Store.GetString(cmd.Key); ok {
 		return types.CreateBulkString(value), nil
 	}
 	return types.BulkStringNull, nil

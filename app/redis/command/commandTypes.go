@@ -4,13 +4,12 @@ import (
 	"fmt"
 	"net"
 
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
 )
 
 type CommandContext struct {
-	Store              store.RedisStore
+	Store              *store.RedisStore
 	Config             redisConfig.RedisConfig
 	ReplicationDetails *redisConfig.ReplicationDetails
 	Conn               net.Conn
@@ -31,6 +30,7 @@ const (
 	CommandReplicationConfig
 	CommandPsync
 	CommandWait
+	CommandRPush
 )
 
 var commandName = map[CommandType]string{
@@ -45,6 +45,7 @@ var commandName = map[CommandType]string{
 	CommandReplicationConfig: "REPLCONF",
 	CommandPsync:             "PSYNC",
 	CommandWait:              "WAIT",
+	CommandRPush:             "RPUSH",
 }
 
 func (ct CommandType) String() string {
@@ -52,7 +53,7 @@ func (ct CommandType) String() string {
 }
 
 // --------------Command Constructors-----------------
-type CommandConstructor func([]string, *CommandContext) (interfaces.Command, error)
+type CommandConstructor func([]string, *CommandContext) (Command, error)
 
 var CommandConstructorMap = map[string]CommandConstructor{
 	commandName[CommandPing]:              NewPingCommand,
@@ -65,10 +66,11 @@ var CommandConstructorMap = map[string]CommandConstructor{
 	commandName[CommandReplicationConfig]: NewReplicationConfigCommand,
 	commandName[CommandPsync]:             NewPsyncCommand,
 	commandName[CommandWait]:              NewWaitCommand,
+	commandName[CommandRPush]:             NewRPushCommand,
 }
 
 // ------------------Command-------------------
-func CommandFactory(name string, args []string, ctx *CommandContext) (interfaces.Command, error) {
+func CommandFactory(name string, args []string, ctx *CommandContext) (Command, error) {
 	constructor, ok := CommandConstructorMap[name]
 	if !ok {
 		return nil, fmt.Errorf("unknown command: %s", name)

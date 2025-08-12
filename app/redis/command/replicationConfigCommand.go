@@ -7,7 +7,6 @@ import (
 	"strings"
 
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
@@ -16,7 +15,7 @@ type ReplicationConfigCommand struct {
 	Args []string
 }
 
-func NewReplicationConfigCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
+func NewReplicationConfigCommand(args []string, ctx *CommandContext) (Command, error) {
 	if len(args) == 0 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -56,13 +55,13 @@ func (cmd *ReplicationConfigCommand) IsHandshakeCommand() bool {
 	return true
 }
 
-func (cmd *ReplicationConfigCommand) GetHandshakeStep() interfaces.HandshakeStep {
+func (cmd *ReplicationConfigCommand) GetHandshakeStep() HandshakeStep {
 	if cmd.Args[0] == "listening-port" {
-		return interfaces.HandshakeStepReplConfFirst
+		return HandshakeStepReplConfFirst
 	} else if cmd.Args[0] == "capa" {
-		return interfaces.HandshakeStepReplConfSecond
+		return HandshakeStepReplConfSecond
 	} else {
-		return interfaces.HandshakeStepNone
+		return HandshakeStepNone
 	}
 }
 

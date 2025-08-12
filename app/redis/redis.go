@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/parser"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/rdbRestorer"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
@@ -22,13 +21,13 @@ type RedisInstance interface {
 	ListenAndRun() error
 	// RestoreFromRdb() error
 	// HandleInput(connInput *ConnectionInput) ([]byte, error)
-	ProcessCommandResponse(connInput *ConnectionInput, commandInput []byte, command interfaces.Command, response string) (string, error)
+	ProcessCommandResponse(connInput *ConnectionInput, commandInput []byte, command command.Command, response string) (string, error)
 
 	GetInputQueue() chan *ConnectionInput
 	GetReplicationDetails() *redisConfig.ReplicationDetails
 	GetParser() parser.RedisParser
 	GetConfig() redisConfig.RedisConfig
-	GetStore() store.RedisStore
+	GetStore() *store.RedisStore
 }
 
 type RedisCore struct {
@@ -42,7 +41,7 @@ type RedisCore struct {
 
 type RedisMaster struct {
 	Config redisConfig.RedisConfig
-	Store  store.RedisStore
+	Store  *store.RedisStore
 	Parser parser.RedisParser
 
 	inputQueue         chan *ConnectionInput
@@ -54,7 +53,7 @@ type RedisMaster struct {
 
 type RedisReplica struct {
 	Config redisConfig.RedisConfig
-	Store  store.RedisStore
+	Store  *store.RedisStore
 	Parser parser.RedisParser
 
 	inputQueue         chan *ConnectionInput
@@ -64,7 +63,7 @@ type RedisReplica struct {
 type ConnectionInput struct {
 	Conn         net.Conn
 	Input        []byte
-	HshakeStep   interfaces.HandshakeStep
+	HshakeStep   command.HandshakeStep
 	ResponseChan chan []byte
 }
 
@@ -127,7 +126,7 @@ func (m *RedisMaster) GetConfig() redisConfig.RedisConfig {
 	return m.Config
 }
 
-func (m *RedisMaster) GetStore() store.RedisStore {
+func (m *RedisMaster) GetStore() *store.RedisStore {
 	return m.Store
 }
 
@@ -144,36 +143,36 @@ func (m *RedisMaster) ListenAndRun() error {
 	return nil
 }
 
-func (m *RedisMaster) ProcessCommandResponse(connInput *ConnectionInput, commandInput []byte, command interfaces.Command, response string) (string, error) {
-	if command == nil {
+func (m *RedisMaster) ProcessCommandResponse(connInput *ConnectionInput, commandInput []byte, cmd command.Command, response string) (string, error) {
+	if cmd == nil {
 		return "", fmt.Errorf("command cannot be nil")
 	}
 
-	if wc, ok := command.(interfaces.WriteCommand); ok && wc.IsWriteCommand() {
+	if wc, ok := cmd.(command.WriteCommand); ok && wc.IsWriteCommand() {
 		m.replicationOutputQueue <- commandInput
 	}
-	if hc, ok := command.(interfaces.HandshakeCommand); ok && hc.IsHandshakeCommand() {
+	if hc, ok := cmd.(command.HandshakeCommand); ok && hc.IsHandshakeCommand() {
 		m.HandleHandshakeStep(connInput, hc.GetHandshakeStep())
 	}
 
 	return response, nil
 }
 
-func (m *RedisMaster) HandleHandshakeStep(connInput *ConnectionInput, newStep interfaces.HandshakeStep) {
-	if connInput.HshakeStep == interfaces.HandshakeStepPsync {
+func (m *RedisMaster) HandleHandshakeStep(connInput *ConnectionInput, newStep command.HandshakeStep) {
+	if connInput.HshakeStep == command.HandshakeStepPsync {
 		return // already finished the handshake so nothing to do
 	}
 
 	isNextStep := newStep-connInput.HshakeStep == 1
 	if isNextStep {
 		connInput.HshakeStep = newStep
-		if newStep == interfaces.HandshakeStepPsync {
+		if newStep == command.HandshakeStepPsync {
 			m.replicationDetails.AddSlaveConn(connInput.Conn)
 			fmt.Printf("Added slave connection: %s\n", connInput.Conn.RemoteAddr().String())
 			// fmt.Printf("Slave connections: %d\n", len(m.replicationDetails.SlaveConnections))
 		}
 	} else {
-		connInput.HshakeStep = interfaces.HandshakeStepNone
+		connInput.HshakeStep = command.HandshakeStepNone
 	}
 }
 
@@ -252,7 +251,7 @@ func (r *RedisReplica) GetConfig() redisConfig.RedisConfig {
 	return r.Config
 }
 
-func (r *RedisReplica) GetStore() store.RedisStore {
+func (r *RedisReplica) GetStore() *store.RedisStore {
 	return r.Store
 }
 
@@ -327,7 +326,7 @@ func (r *RedisReplica) Handshake() (net.Conn, error) {
 		connInput := &ConnectionInput{
 			Conn:         conn,
 			Input:        input,
-			HshakeStep:   interfaces.HandshakeStepPsync,
+			HshakeStep:   command.HandshakeStepPsync,
 			ResponseChan: make(chan []byte),
 		}
 		resp, err := HandleInput(r, connInput)
@@ -454,7 +453,7 @@ func (r *RedisReplica) SendHandshakeCommand(conn net.Conn, command, expectedResp
 	return nil
 }
 
-func (r *RedisReplica) ProcessCommandResponse(connInput *ConnectionInput, commandInput []byte, command interfaces.Command, response string) (string, error) {
+func (r *RedisReplica) ProcessCommandResponse(connInput *ConnectionInput, commandInput []byte, cmd command.Command, response string) (string, error) {
 	isMasterConn := connInput.Conn == r.GetReplicationDetails().MasterConn
 	fmt.Printf("Processing command response for connection (master: %v): %q\n", isMasterConn, response)
 	if !isMasterConn {
@@ -463,7 +462,7 @@ func (r *RedisReplica) ProcessCommandResponse(connInput *ConnectionInput, comman
 
 	r.replicationDetails.ReplicaOffset += len(commandInput)
 	fmt.Printf("Replica offset updated to %d\n", r.replicationDetails.ReplicaOffset)
-	if mc, ok := command.(interfaces.MasterResponseCommand); ok && mc.IsMasterResponseCommand() {
+	if mc, ok := cmd.(command.MasterResponseCommand); ok && mc.IsMasterResponseCommand() {
 		return response, nil
 	}
 	return "", nil
@@ -526,7 +525,7 @@ func HandleConnection(inst RedisInstance, conn net.Conn) error {
 	connInput := &ConnectionInput{
 		Conn:         conn,
 		Input:        []byte{},
-		HshakeStep:   interfaces.HandshakeStepNone,
+		HshakeStep:   command.HandshakeStepNone,
 		ResponseChan: make(chan []byte),
 	}
 
@@ -610,7 +609,7 @@ func HandleInput(inst RedisInstance, connInput *ConnectionInput) ([]byte, error)
 	return []byte(resp), nil
 }
 
-func HandleCommand(inst RedisInstance, commandParts []string, ctx *command.CommandContext) (string, interfaces.Command, error) {
+func HandleCommand(inst RedisInstance, commandParts []string, ctx *command.CommandContext) (string, command.Command, error) {
 	command, err := inst.GetParser().ParseCommand(commandParts, ctx)
 	if err != nil {
 		return "", nil, fmt.Errorf("failed to parse command %s: %w", commandParts[0], err)

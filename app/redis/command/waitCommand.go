@@ -6,7 +6,6 @@ import (
 	"time"
 
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
@@ -18,7 +17,7 @@ type WaitCommand struct {
 	ReplicationDetails *redisConfig.ReplicationDetails
 }
 
-func NewWaitCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
+func NewWaitCommand(args []string, ctx *CommandContext) (Command, error) {
 	if len(args) < 2 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}

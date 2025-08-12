@@ -6,7 +6,6 @@ import (
 	"strings"
 
 	"github.com/codecrafters-io/redis-starter-go/app/redis/command"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/types"
 )
 
@@ -15,7 +14,7 @@ var ErrTypeByteCheck = fmt.Errorf("failed type byte check")
 
 type RedisParser interface {
 	ParseInput(input []byte) ([]string, int, error)
-	ParseCommand(parts []string, ctx *command.CommandContext) (interfaces.Command, error)
+	ParseCommand(parts []string, ctx *command.CommandContext) (command.Command, error)
 	GetAggregateLength(input []byte) (int, int, error)
 }
 
@@ -117,7 +116,7 @@ func (parser *RedisParserImpl) ParseArray(input []byte) ([]string, int, error) {
 	return array, p, nil
 }
 
-func (_ *RedisParserImpl) ParseCommand(parts []string, ctx *command.CommandContext) (interfaces.Command, error) {
+func (_ *RedisParserImpl) ParseCommand(parts []string, ctx *command.CommandContext) (command.Command, error) {
 	if len(parts) == 0 {
 		return nil, fmt.Errorf("empty command")
 	}

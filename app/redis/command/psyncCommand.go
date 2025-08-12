@@ -5,7 +5,6 @@ import (
 	"strconv"
 
 	cmderrors "github.com/codecrafters-io/redis-starter-go/app/redis/command/cmdErrors"
-	"github.com/codecrafters-io/redis-starter-go/app/redis/command/interfaces"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/rdbRestorer"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/redisConfig"
 	"github.com/codecrafters-io/redis-starter-go/app/redis/store"
@@ -15,10 +14,10 @@ type PsyncCommand struct {
 	ReplicationId      string
 	ReplicationOffset  int
 	ReplicationDetails *redisConfig.ReplicationDetails
-	Store              store.RedisStore
+	Store              *store.RedisStore
 }
 
-func NewPsyncCommand(args []string, ctx *CommandContext) (interfaces.Command, error) {
+func NewPsyncCommand(args []string, ctx *CommandContext) (Command, error) {
 	if len(args) < 2 {
 		return nil, cmderrors.ErrNotEnoughArgs
 	}
@@ -74,6 +73,6 @@ func (cmd *PsyncCommand) IsHandshakeCommand() bool {
 	return true
 }
 
-func (cmd *PsyncCommand) GetHandshakeStep() interfaces.HandshakeStep {
-	return interfaces.HandshakeStepPsync
+func (cmd *PsyncCommand) GetHandshakeStep() HandshakeStep {
+	return HandshakeStepPsync
 }
