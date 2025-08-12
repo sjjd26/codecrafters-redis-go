@@ -7,9 +7,9 @@ import (
 )
 
 type RPushCommand struct {
-	Key   string
-	Value string
-	Store *store.RedisStore
+	Key    string
+	Values []string
+	Store  *store.RedisStore
 }
 
 func NewRPushCommand(args []string, ctx *CommandContext) (Command, error) {
@@ -18,12 +18,12 @@ func NewRPushCommand(args []string, ctx *CommandContext) (Command, error) {
 	}
 
 	key := args[0]
-	value := args[1]
+	values := args[1:]
 
 	return &RPushCommand{
-		Key:   key,
-		Value: value,
-		Store: ctx.Store,
+		Key:    key,
+		Values: values,
+		Store:  ctx.Store,
 	}, nil
 }
 
@@ -32,7 +32,7 @@ func (cmd *RPushCommand) Execute() (string, error) {
 	if !exists {
 		list = []string{}
 	}
-	list = append(list, cmd.Value)
+	list = append(list, cmd.Values...)
 	listValue := store.NewRedisList(list)
 	cmd.Store.Add(cmd.Key, listValue)
 	return types.CreateInt(len(list)), nil
