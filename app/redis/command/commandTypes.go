@@ -31,6 +31,7 @@ const (
 	CommandPsync
 	CommandWait
 	CommandRPush
+	CommandLPush
 	CommandLRange
 )
 
@@ -47,6 +48,7 @@ var commandName = map[CommandType]string{
 	CommandPsync:             "PSYNC",
 	CommandWait:              "WAIT",
 	CommandRPush:             "RPUSH",
+	CommandLPush:             "LPUSH",
 	CommandLRange:            "LRANGE",
 }
 
@@ -69,6 +71,7 @@ var CommandConstructorMap = map[string]CommandConstructor{
 	commandName[CommandPsync]:             NewPsyncCommand,
 	commandName[CommandWait]:              NewWaitCommand,
 	commandName[CommandRPush]:             NewRPushCommand,
+	commandName[CommandLPush]:             NewLPushCommand,
 	commandName[CommandLRange]:            NewLRangeCommand,
 }
 
