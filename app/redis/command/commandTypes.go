@@ -34,6 +34,7 @@ const (
 	CommandLPush
 	CommandLRange
 	CommandLLen
+	CommandLPop
 )
 
 var commandName = map[CommandType]string{
@@ -52,6 +53,7 @@ var commandName = map[CommandType]string{
 	CommandLPush:             "LPUSH",
 	CommandLRange:            "LRANGE",
 	CommandLLen:              "LLEN",
+	CommandLPop:              "LPOP",
 }
 
 func (ct CommandType) String() string {
@@ -76,6 +78,7 @@ var CommandConstructorMap = map[string]CommandConstructor{
 	commandName[CommandLPush]:             NewLPushCommand,
 	commandName[CommandLRange]:            NewLRangeCommand,
 	commandName[CommandLLen]:              NewLLenCommand,
+	commandName[CommandLPop]:              NewLPopCommand,
 }
 
 // ------------------Command-------------------

@@ -4,6 +4,7 @@ import "fmt"
 
 const BulkStringNull = "$-1\r\n"
 const OkString = "+OK\r\n"
+const EmptyArray = "*0\r\n"
 
 func CreateBulkString(str string) string {
 	return fmt.Sprintf("$%v\r\n%s\r\n", len(str), str)
@@ -18,7 +19,7 @@ func CreateKeyValueNullArray(key string) string {
 }
 
 func CreateEmptyArray() string {
-	return "*0\r\n"
+	return EmptyArray
 }
 
 func CreateBulkStringArray(values []string) string {
